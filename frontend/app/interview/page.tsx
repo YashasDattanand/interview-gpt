@@ -9,124 +9,137 @@ export default function Page() {
 
   const [recording, setRecording] = useState(false);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+  const [transcript, setTranscript] = useState("");
+  const [feedback, setFeedback] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
 
-  // START RECORDING
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true
-      });
+  // Speech recognition
+  let recognition: any;
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+  const startSpeechToText = () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event: any) => {
+      let text = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        text += event.results[i][0].transcript + " ";
       }
+      setTranscript(prev => prev + text);
+    };
 
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "video/webm" });
-        setVideoBlob(blob);
-        chunksRef.current = [];
-      };
-
-      mediaRecorder.start();
-      setRecording(true);
-    } catch (err) {
-      alert("Camera or microphone access denied");
-    }
+    recognition.start();
+    (window as any).recognition = recognition;
   };
 
-  // STOP RECORDING
+  const startRecording = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true
+    });
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+
+    const recorder = new MediaRecorder(stream);
+    mediaRecorderRef.current = recorder;
+
+    recorder.ondataavailable = e => {
+      if (e.data.size) chunksRef.current.push(e.data);
+    };
+
+    recorder.onstop = () => {
+      const blob = new Blob(chunksRef.current, { type: "video/webm" });
+      setVideoBlob(blob);
+      chunksRef.current = [];
+    };
+
+    recorder.start();
+    startSpeechToText();
+    setRecording(true);
+  };
+
   const stopRecording = () => {
     mediaRecorderRef.current?.stop();
+    (window as any).recognition?.stop();
 
     const stream = videoRef.current?.srcObject as MediaStream;
-    stream?.getTracks().forEach(track => track.stop());
+    stream?.getTracks().forEach(t => t.stop());
 
     setRecording(false);
   };
 
-  // UPLOAD VIDEO TO BACKEND
   const uploadVideo = async () => {
-    if (!videoBlob) {
-      alert("No video recorded");
-      return;
-    }
+    if (!videoBlob) return alert("No video");
 
     setUploading(true);
+    const fd = new FormData();
+    fd.append("video", videoBlob);
 
-    const formData = new FormData();
-    formData.append("video", videoBlob);
+    await fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/interview/upload`,
+      { method: "POST", body: fd }
+    );
 
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/interview/upload`,
-        {
-          method: "POST",
-          body: formData
-        }
-      );
+    setUploading(false);
+    alert("Video uploaded");
+  };
 
-      const data = await res.json();
-
-      if (data.success) {
-        alert("Video uploaded successfully");
-      } else {
-        alert(data.error || "Upload failed");
+  const getFeedback = async () => {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/feedback`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript })
       }
-    } catch (err) {
-      alert("Error uploading video");
-    } finally {
-      setUploading(false);
-    }
+    );
+
+    const data = await res.json();
+    setFeedback(data);
   };
 
   return (
     <main style={{ padding: 24 }}>
-      <h1>Mock Interview (Video)</h1>
+      <h1>Video Interview</h1>
 
       <video
         ref={videoRef}
         autoPlay
         muted
-        style={{
-          width: "420px",
-          height: "320px",
-          border: "1px solid #ccc",
-          marginBottom: "12px"
-        }}
+        style={{ width: 420, border: "1px solid #ccc" }}
       />
 
-      <div style={{ marginBottom: 12 }}>
-        {!recording && (
-          <button onClick={startRecording}>
-            🎥 Start Interview
-          </button>
-        )}
-
-        {recording && (
-          <button onClick={stopRecording}>
-            ⏹ End Interview
-          </button>
-        )}
+      <div>
+        {!recording && <button onClick={startRecording}>Start</button>}
+        {recording && <button onClick={stopRecording}>Stop</button>}
       </div>
 
       {videoBlob && (
-        <div>
-          <p>✅ Video recorded</p>
-          <button onClick={uploadVideo} disabled={uploading}>
-            {uploading ? "Uploading..." : "⬆️ Upload for Analysis"}
-          </button>
-        </div>
+        <button onClick={uploadVideo} disabled={uploading}>
+          Upload Video
+        </button>
+      )}
+
+      {transcript && (
+        <>
+          <h3>Transcript</h3>
+          <p>{transcript}</p>
+          <button onClick={getFeedback}>Get AI Feedback</button>
+        </>
+      )}
+
+      {feedback && (
+        <>
+          <h3>Scores</h3>
+          <pre>{JSON.stringify(feedback, null, 2)}</pre>
+        </>
       )}
     </main>
   );
