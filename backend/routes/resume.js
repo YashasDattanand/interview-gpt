@@ -1,63 +1,35 @@
 import express from "express";
+import multer from "multer";
+import pdf from "pdf-parse";
 import { groq } from "../utils/groq.js";
 
 const router = express.Router();
+const upload = multer();
 
-function extractJSON(text) {
-  const first = text.indexOf("{");
-  const last = text.lastIndexOf("}");
-  if (first === -1 || last === -1) {
-    throw new Error("Invalid JSON from LLM");
-  }
-  return JSON.parse(text.slice(first, last + 1));
-}
+router.post("/analyze", upload.fields([
+  { name: "resume" },
+  { name: "jd" }
+]), async (req, res) => {
+  const resumeText = (await pdf(req.files.resume[0].buffer)).text;
+  const jdText = (await pdf(req.files.jd[0].buffer)).text;
 
-router.post("/match", async (req, res) => {
-  try {
-    const { resumeText, jdText } = req.body;
+  const prompt = `
+Compare resume and JD.
+Return JSON:
+match_score (0-100)
+missing_skills
+resume_improvements
+`;
 
-    if (!resumeText || !jdText) {
-      return res.status(400).json({ error: "Missing resume or JD" });
-    }
+  const completion = await groq.chat.completions.create({
+    model: "llama-3.1-8b-instant",
+    messages: [{
+      role: "user",
+      content: `${prompt}\nResume:\n${resumeText}\nJD:\n${jdText}`
+    }]
+  });
 
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      temperature: 0.2,
-      messages: [
-        {
-          role: "system",
-          content: `
-You are an ATS + hiring manager.
-Be strict, realistic, and detailed.
-Return JSON only.
-`
-        },
-        {
-          role: "user",
-          content: `
-Resume:
-${resumeText}
-
-Job Description:
-${jdText}
-
-Return JSON ONLY:
-{
-  "match_score": number,
-  "matched_keywords": [string],
-  "missing_keywords": [string],
-  "resume_improvements": [string]
-}
-`
-        }
-      ]
-    });
-
-    res.json(extractJSON(completion.choices[0].message.content));
-  } catch (err) {
-    console.error("Resume match error:", err.message);
-    res.status(500).json({ error: "Resume matching failed" });
-  }
+  res.json(JSON.parse(completion.choices[0].message.content));
 });
 
 export default router;
