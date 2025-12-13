@@ -65,6 +65,8 @@ ${ragContext}
 
 Conversation so far:
 ${history}
+Recent student-reported interview questions:
+${crowdQs}
 
 Decide the next best interview question.
 `
