@@ -1,83 +1,74 @@
 import express from "express";
-import fs from "fs";
 import { groq } from "../utils/groq.js";
+import fs from "fs";
 
 const router = express.Router();
 
-function loadRag(role, company) {
-  let context = "";
-
-  try {
-    context += fs.readFileSync(`./rag/roles/${role}.json`, "utf-8");
-  } catch {}
-
-  if (company) {
-    try {
-      context += "\n" + fs.readFileSync(`./rag/companies/${company}.json`, "utf-8");
-    } catch {}
-  }
-
-  return context;
-}
+// Load RAG data
+const ragData = JSON.parse(
+  fs.readFileSync("./rag/glim_questions.json", "utf-8")
+);
 
 router.post("/next", async (req, res) => {
   try {
-    const { role, experience, company, history } = req.body;
+    const { role, experience, company, history, lastAnswer } = req.body;
 
-    const ragContext = loadRag(role, company);
-    const crowd = JSON.parse(
-  fs.readFileSync("./rag/crowd/glim_students.json", "utf-8")
-);
+    // First question (hardcoded, no LLM)
+    if (!history || history.length === 0) {
+      return res.json({
+        question:
+          "Tell me about yourself and your background relevant to this role."
+      });
+    }
 
-const crowdQs = crowd
-  .filter(q => q.role === role && q.company === company)
-  .flatMap(q => q.questions)
-  .join("\n");
+    // Build grounding context
+    const roleData = ragData[role] || [];
+    const companyData =
+      company && ragData[`${role}_${company}`]
+        ? ragData[`${role}_${company}`]
+        : [];
+
+    const context = [...roleData, ...companyData]
+      .slice(0, 5)
+      .join("\n");
+
+    const prompt = `
+You are a human interviewer.
+
+Rules:
+- Ask ONE question only.
+- No explanations.
+- No feedback.
+- If answer is weak, probe deeper.
+- If answer is strong, increase difficulty.
+- Be conversational, not robotic.
+
+Candidate last answer:
+"${lastAnswer}"
+
+Interview context:
+${context}
+
+Return ONLY the next interview question as plain text.
+`;
 
     const completion = await groq.chat.completions.create({
       model: "llama-3.1-8b-instant",
-      temperature: 0.7,
-      messages: [
-        {
-          role: "system",
-          content: `
-You are a real human interviewer.
-
-Rules:
-- Ask ONE question at a time
-- If the candidate answer is vague, ask a follow-up
-- If they give a claim, ask for an example
-- If answer is strong, move forward
-- Never sound robotic
-- Be conversational and adaptive
-`
-        },
-        {
-          role: "user",
-          content: `
-Candidate details:
-Role: ${role}
-Experience: ${experience}
-Target company: ${company || "General"}
-
-Reference interview areas (do NOT read verbatim):
-${ragContext}
-
-Conversation so far:
-${history}
-Recent student-reported interview questions:
-${crowdQs}
-
-Decide the next best interview question.
-`
-        }
-      ]
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.7
     });
 
-    res.json({ question: completion.choices[0].message.content.trim() });
+    const question = completion.choices[0].message.content
+      .replace(/[\n\r]/g, " ")
+      .trim();
+
+    return res.json({ question });
   } catch (err) {
-    console.error("Interview flow error:", err.message);
-    res.status(500).json({ error: "Interview flow failed" });
+    console.error("Interview flow error:", err);
+    res.status(500).json({
+      question:
+        "Let's move on. Can you describe a challenging situation you handled?"
+    });
   }
 });
 
