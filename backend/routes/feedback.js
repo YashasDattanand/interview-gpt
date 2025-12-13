@@ -7,52 +7,48 @@ router.post("/", async (req, res) => {
   try {
     const { transcript, role } = req.body;
 
-    if (!transcript || transcript.trim().length < 20) {
-      return res.status(400).json({
-        error: "Transcript too short for feedback"
-      });
+    if (!transcript || transcript.length < 30) {
+      return res.status(400).json({ error: "Transcript too short" });
     }
 
     const completion = await groq.chat.completions.create({
       model: "llama-3.1-8b-instant",
+      temperature: 0.3,
       messages: [
         {
           role: "system",
           content:
-            "You are an empathetic interview coach. Give structured feedback with scores."
+            "You are an empathetic interview coach. Be constructive, not harsh."
         },
         {
           role: "user",
           content: `
 Role: ${role}
 
-Interview Transcript:
+Transcript:
 ${transcript}
 
-Return JSON in this format ONLY:
+Return STRICT JSON:
 {
   "scores": {
     "clarity": number,
-    "structure": number,
     "confidence": number,
+    "structure": number,
     "relevance": number
   },
   "strengths": [string],
   "improvements": [string],
-  "overall_feedback": string
+  "overall": string
 }
 `
         }
-      ],
-      temperature: 0.4
+      ]
     });
 
-    const raw = completion.choices[0].message.content;
-    const parsed = JSON.parse(raw);
+    res.json(JSON.parse(completion.choices[0].message.content));
 
-    res.json(parsed);
   } catch (err) {
-    console.error("FEEDBACK ERROR:", err.message);
+    console.error("Feedback error:", err.message);
     res.status(500).json({ error: "Feedback generation failed" });
   }
 });
