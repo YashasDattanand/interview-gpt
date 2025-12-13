@@ -4,13 +4,14 @@ import { groq } from "../utils/groq.js";
 const router = express.Router();
 
 router.post("/", async (req, res) => {
-  const { transcript, role = "General", level = "Student" } = req.body;
+  try {
+    const { transcript, role = "General", level = "Student" } = req.body;
 
-  if (!transcript) {
-    return res.status(400).json({ error: "Transcript missing" });
-  }
+    if (!transcript) {
+      return res.status(400).json({ error: "Transcript missing" });
+    }
 
-  const prompt = `
+    const prompt = `
 You are a strict but encouraging interview coach.
 
 Analyze the following interview answer for the role of ${role} (${level}).
@@ -34,20 +35,20 @@ Return ONLY valid JSON:
 }
 `;
 
-  const completion = await groq.chat.completions.create({
-    model: "llama3-70b-8192",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.3
-  });
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3
+    });
 
-  const output = completion.choices[0].message.content;
+    const output = completion.choices[0].message.content;
 
-  try {
     res.json(JSON.parse(output));
-  } catch {
-    res.json({
-      error: "AI output parsing failed",
-      raw: output
+  } catch (err) {
+    console.error("Groq error:", err);
+    res.status(500).json({
+      error: "AI feedback generation failed",
+      details: err.message
     });
   }
 });
