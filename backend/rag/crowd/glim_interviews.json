@@ -1,0 +1,17 @@
+[
+  {
+    "company": "Amazon",
+    "role": "Product Manager",
+    "experience": "Interview focused heavily on prioritization. Asked to design a feature for Prime users and justify metrics. Follow-ups were aggressive if answers were vague."
+  },
+  {
+    "company": "Flipkart",
+    "role": "Product Manager",
+    "experience": "Case-based interview around improving conversion on product listing pages. Emphasis on trade-offs and constraints specific to India."
+  },
+  {
+    "company": "McKinsey",
+    "role": "Tech Consultant",
+    "experience": "Started with a broad business problem, then drilled into tech feasibility. Interviewer pushed hard on structuring and clarity."
+  }
+]
