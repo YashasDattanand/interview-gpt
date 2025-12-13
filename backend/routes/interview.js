@@ -5,32 +5,26 @@ import fs from "fs";
 
 const router = express.Router();
 
-// ensure uploads folder exists
 const uploadDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
-// configure multer
 const storage = multer.diskStorage({
   destination: uploadDir,
-  filename: (req, file, cb) => {
-    const name = `interview-${Date.now()}.webm`;
-    cb(null, name);
+  filename: (_, __, cb) => {
+    cb(null, `interview-${Date.now()}.webm`);
   }
 });
 
 const upload = multer({ storage });
 
-// upload endpoint
-router.post("/upload", upload.single("video"), async (req, res) => {
+router.post("/upload", upload.single("video"), (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: "No video received" });
+    return res.status(400).json({ error: "No video uploaded" });
   }
 
   res.json({
     success: true,
-    file: req.file.filename
+    filename: req.file.filename
   });
 });
 
