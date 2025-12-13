@@ -5,54 +5,21 @@ import { useEffect, useRef, useState } from "react";
 type QA = { question: string; answer: string };
 
 export default function InterviewPage() {
-  // ===== Refs =====
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
   const recognitionRef = useRef<any>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const startTimeRef = useRef<number | null>(null);
-  const endedRef = useRef(false);
+  const silenceTimerRef = useRef<any>(null);
+  const startedRef = useRef(false);
 
-  // ===== State =====
   const [history, setHistory] = useState<QA[]>([]);
   const [currentQ, setCurrentQ] = useState("");
   const [answer, setAnswer] = useState("");
   const [listening, setListening] = useState(false);
-  const [duration, setDuration] = useState(0);
   const [ended, setEnded] = useState(false);
   const [feedback, setFeedback] = useState<any>(null);
-  const [showUpload, setShowUpload] = useState(false);
+  const [error, setError] = useState("");
 
   const role = "Product Manager";
 
-  // ===== TIMER =====
-  const startTimer = () => {
-    if (startTimeRef.current) return;
-    startTimeRef.current = Date.now();
-    timerRef.current = setInterval(() => {
-      setDuration(Math.floor((Date.now() - startTimeRef.current!) / 1000));
-    }, 1000);
-  };
-
-  // ===== CAMERA =====
-  const startCamera = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true
-    });
-    streamRef.current = stream;
-    if (videoRef.current) videoRef.current.srcObject = stream;
-
-    const recorder = new MediaRecorder(stream);
-    recorderRef.current = recorder;
-
-    recorder.ondataavailable = e => e.data.size && chunksRef.current.push(e.data);
-    recorder.start();
-  };
-
-  // ===== SPEECH =====
+  // ---------- SPEAK ----------
   const speak = (text: string) => {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
@@ -60,37 +27,50 @@ export default function InterviewPage() {
     speechSynthesis.speak(u);
   };
 
-  const startListening = () => {
-    const SR =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
+  // ---------- MIC ----------
+  const startMic = () => {
+    try {
+      const SR =
+        (window as any).SpeechRecognition ||
+        (window as any).webkitSpeechRecognition;
 
-    const recognition = new SR();
-    recognitionRef.current = recognition;
+      if (!SR) {
+        alert("Speech Recognition not supported. Use Chrome.");
+        return;
+      }
 
-    recognition.lang = "en-US";
-    recognition.interimResults = false;
-    recognition.continuous = false;
+      const recognition = new SR();
+      recognitionRef.current = recognition;
 
-    recognition.onresult = (e: any) => {
-      const text = e.results[0][0].transcript;
-      setAnswer(text);
-      startTimer();
-    };
+      recognition.lang = "en-US";
+      recognition.continuous = false;
+      recognition.interimResults = false;
 
-    recognition.onend = () => {
-      setListening(false);
-    };
+      recognition.onresult = (e: any) => {
+        const text = e.results[0][0].transcript;
+        setAnswer(text);
+      };
 
-    recognition.start();
-    setListening(true);
+      recognition.onerror = () => {
+        setListening(false);
+      };
 
-    setTimeout(() => {
-      recognition.stop();
-    }, 8000);
+      recognition.onend = () => {
+        setListening(false);
+      };
+
+      recognition.start();
+      setListening(true);
+
+      silenceTimerRef.current = setTimeout(() => {
+        recognition.stop();
+      }, 8000);
+    } catch (e) {
+      setError("Mic error. Refresh and try again.");
+    }
   };
 
-  // ===== INTERVIEW FLOW =====
+  // ---------- FLOW ----------
   const nextQuestion = async (newHistory: QA[]) => {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_BACKEND_URL}/interview-flow/next`,
@@ -100,6 +80,7 @@ export default function InterviewPage() {
         body: JSON.stringify({ role, history: newHistory })
       }
     );
+
     const data = await res.json();
     setCurrentQ(data.question);
     setAnswer("");
@@ -112,66 +93,52 @@ export default function InterviewPage() {
     await nextQuestion(newHistory);
   };
 
-  // ===== END INTERVIEW =====
   const endInterview = async () => {
-    if (endedRef.current) return;
-    endedRef.current = true;
+    try {
+      setEnded(true);
 
-    recorderRef.current?.stop();
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    timerRef.current && clearInterval(timerRef.current);
+      const transcript = history
+        .map(h => `Q: ${h.question}\nA: ${h.answer}`)
+        .join("\n");
 
-    setEnded(true);
-    setShowUpload(true);
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/feedback`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role, transcript })
+        }
+      );
+
+      const data = await res.json();
+      setFeedback(data);
+    } catch {
+      setError("Feedback failed. Backend error.");
+    }
   };
 
-  const generateFeedback = async () => {
-    const transcript = history
-      .map(h => `Q: ${h.question}\nA: ${h.answer}`)
-      .join("\n");
-
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_BACKEND_URL}/feedback`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript, role })
-      }
-    );
-
-    setFeedback(await res.json());
-    setShowUpload(false);
-  };
-
-  // ===== INIT =====
+  // ---------- INIT ----------
   useEffect(() => {
-    startCamera();
+    if (startedRef.current) return;
+    startedRef.current = true;
     nextQuestion([]);
   }, []);
 
-  // ===== UI =====
+  // ---------- UI ----------
   return (
-    <div style={{ padding: 24 }}>
-      <h2>Product Manager Interview</h2>
-      <p>Duration: {duration}s</p>
+    <div style={{ maxWidth: 900, margin: "auto", padding: 24 }}>
+      <h2>AI Mock Interview</h2>
 
-      <div style={{ display: "flex", gap: 24 }}>
-        {/* LEFT */}
-        <div style={{ width: 320 }}>
-          <video ref={videoRef} autoPlay muted style={{ width: "100%" }} />
-          <button onClick={startListening} disabled={listening}>
-            🎤 {listening ? "Listening..." : "Start Speaking"}
-          </button>
-        </div>
+      {error && <p style={{ color: "red" }}>{error}</p>}
 
-        {/* RIGHT */}
-        <div style={{ flex: 1 }}>
+      {!ended && (
+        <>
           <div
             style={{
               height: 300,
-              overflowY: "auto",
               border: "1px solid #ddd",
-              padding: 12
+              padding: 16,
+              overflowY: "auto"
             }}
           >
             {history.map((h, i) => (
@@ -185,46 +152,31 @@ export default function InterviewPage() {
             <b>Interviewer:</b> {currentQ}
           </div>
 
-          <input
+          <textarea
+            style={{ width: "100%", height: 80 }}
             value={answer}
             onChange={e => setAnswer(e.target.value)}
-            placeholder="Type your answer"
-            style={{ width: "100%", marginTop: 8 }}
+            placeholder="Type your answer or use mic"
           />
 
           <div style={{ marginTop: 8 }}>
-            <button onClick={submitAnswer}>Send</button>
+            <button onClick={startMic} disabled={listening}>
+              🎤 {listening ? "Listening..." : "Start Speaking"}
+            </button>
+            <button onClick={submitAnswer} style={{ marginLeft: 8 }}>
+              Submit
+            </button>
             <button onClick={endInterview} style={{ marginLeft: 8 }}>
               End Interview
             </button>
           </div>
-        </div>
-      </div>
-
-      {showUpload && (
-        <div>
-          <h3>Upload interview video?</h3>
-          <button onClick={generateFeedback}>Skip & Get Feedback</button>
-        </div>
+        </>
       )}
 
-      {feedback && (
+      {ended && feedback && (
         <div>
-          <h2>Feedback</h2>
-          {Object.entries(feedback.scores).map(([k, v]: any) => (
-            <div key={k}>
-              {k}
-              <div style={{ background: "#eee", height: 8 }}>
-                <div
-                  style={{
-                    width: `${v * 20}%`,
-                    height: 8,
-                    background: "#22c55e"
-                  }}
-                />
-              </div>
-            </div>
-          ))}
+          <h3>Feedback</h3>
+          <pre>{JSON.stringify(feedback, null, 2)}</pre>
         </div>
       )}
     </div>
