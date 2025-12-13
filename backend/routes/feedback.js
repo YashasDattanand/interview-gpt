@@ -7,36 +7,52 @@ router.post("/", async (req, res) => {
   try {
     const { transcript, role } = req.body;
 
-    const prompt = `
-You are an interview coach.
-
-Evaluate this interview transcript for a ${role} candidate:
-
-${transcript}
-
-Return STRICT JSON:
-{
-  "scores": {
-    "clarity": 1-5,
-    "structure": 1-5,
-    "confidence": 1-5,
-    "relevance": 1-5
-  },
-  "strengths": [string],
-  "weaknesses": [string],
-  "improvements": [string],
-  "summary": string
-}
-`;
+    if (!transcript || transcript.trim().length < 20) {
+      return res.status(400).json({
+        error: "Transcript too short for feedback"
+      });
+    }
 
     const completion = await groq.chat.completions.create({
       model: "llama-3.1-8b-instant",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an empathetic interview coach. Give structured feedback with scores."
+        },
+        {
+          role: "user",
+          content: `
+Role: ${role}
+
+Interview Transcript:
+${transcript}
+
+Return JSON in this format ONLY:
+{
+  "scores": {
+    "clarity": number,
+    "structure": number,
+    "confidence": number,
+    "relevance": number
+  },
+  "strengths": [string],
+  "improvements": [string],
+  "overall_feedback": string
+}
+`
+        }
+      ],
+      temperature: 0.4
     });
 
-    res.json(JSON.parse(completion.choices[0].message.content));
-  } catch {
+    const raw = completion.choices[0].message.content;
+    const parsed = JSON.parse(raw);
+
+    res.json(parsed);
+  } catch (err) {
+    console.error("FEEDBACK ERROR:", err.message);
     res.status(500).json({ error: "Feedback generation failed" });
   }
 });
