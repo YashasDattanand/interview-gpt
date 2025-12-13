@@ -25,6 +25,14 @@ router.post("/next", async (req, res) => {
     const { role, experience, company, history } = req.body;
 
     const ragContext = loadRag(role, company);
+    const crowd = JSON.parse(
+  fs.readFileSync("./rag/crowd/glim_students.json", "utf-8")
+);
+
+const crowdQs = crowd
+  .filter(q => q.role === role && q.company === company)
+  .flatMap(q => q.questions)
+  .join("\n");
 
     const completion = await groq.chat.completions.create({
       model: "llama-3.1-8b-instant",
