@@ -3,33 +3,50 @@ import { groq } from "../utils/groq.js";
 
 const router = express.Router();
 
-router.post("/analyze", async (req, res) => {
-  const { resume, jd } = req.body;
+router.post("/match", async (req, res) => {
+  try {
+    const { resumeText, jdText } = req.body;
 
-  const prompt = `
-You are an ATS + interview expert.
+    if (!resumeText || !jdText) {
+      return res.status(400).json({ error: "Missing resume or JD" });
+    }
 
-Compare Resume and JD.
-Return:
-- Match score (0-100)
-- Matched keywords
-- Missing keywords
-- Section-wise feedback
-- Improvement tips
-
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      temperature: 0.2,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an ATS + hiring manager. Be precise and detailed."
+        },
+        {
+          role: "user",
+          content: `
 Resume:
-${resume}
+${resumeText}
 
-JD:
-${jd}
-`;
+Job Description:
+${jdText}
 
-  const completion = await groq.chat.completions.create({
-    model: "mixtral-8x7b-32768",
-    messages: [{ role: "user", content: prompt }]
-  });
+Return JSON ONLY:
+{
+  "match_score": number,
+  "matched_keywords": [string],
+  "missing_keywords": [string],
+  "improvements": [string]
+}
+`
+        }
+      ]
+    });
 
-  res.json({ result: completion.choices[0].message.content });
+    res.json(JSON.parse(completion.choices[0].message.content));
+
+  } catch (err) {
+    console.error("Resume match error:", err.message);
+    res.status(500).json({ error: "Resume matching failed" });
+  }
 });
 
 export default router;
