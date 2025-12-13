@@ -1,32 +1,27 @@
 import express from "express";
 import cors from "cors";
+import dotenv from "dotenv";
 
-// ROUTES
-import authRoutes from "./routes/auth.js";
 import interviewRoutes from "./routes/interview.js";
-import interviewFlowRoutes from "./routes/interviewFlow.js";
 import feedbackRoutes from "./routes/feedback.js";
+import resumeRoutes from "./routes/resume.js";
 
-// INIT APP FIRST (THIS WAS THE BUG)
+dotenv.config();
+
 const app = express();
 
-// MIDDLEWARE
 app.use(cors());
 app.use(express.json());
 
-// ROUTES (AFTER app IS CREATED)
-app.use("/auth", authRoutes);
+app.get("/", (_, res) => {
+  res.send("InterviewGPT Backend Running");
+});
+
 app.use("/interview", interviewRoutes);
-app.use("/interview-flow", interviewFlowRoutes);
 app.use("/feedback", feedbackRoutes);
+app.use("/resume", resumeRoutes);
 
-// HEALTH CHECK
-app.get("/", (req, res) => {
-  res.send("InterviewGPT Backend Running ✅");
-});
-
-// START SERVER
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Backend running on port ${PORT}`);
-});
+app.listen(PORT, () =>
+  console.log(`Backend running on port ${PORT}`)
+);
