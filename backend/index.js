@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import authRoutes from "./routes/auth.js";
+import interviewRoutes from "./routes/interview.js";
 
 const app = express();
 
@@ -10,6 +11,7 @@ app.use(express.json());
 
 // routes
 app.use("/auth", authRoutes);
+app.use("/interview", interviewRoutes);
 
 // health check
 app.get("/", (req, res) => {
@@ -21,3 +23,4 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Backend running on port ${PORT}`);
 });
+
