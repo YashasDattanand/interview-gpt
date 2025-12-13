@@ -4,6 +4,8 @@ import cors from "cors";
 import authRoutes from "./routes/auth.js";
 import interviewRoutes from "./routes/interview.js";
 import feedbackRoutes from "./routes/feedback.js";
+import interviewFlowRoutes from "./routes/interviewFlow.js";
+app.use("/interview-flow", interviewFlowRoutes);
 
 const app = express();
 
@@ -24,3 +26,4 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Backend running on port ${PORT}`);
 });
+
