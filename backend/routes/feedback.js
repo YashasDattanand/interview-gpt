@@ -4,46 +4,52 @@ import { groq } from "../utils/groq.js";
 const router = express.Router();
 
 router.post("/", async (req, res) => {
-  const { transcript, resume, jd } = req.body;
+  const { transcript, role = "General", level = "Student" } = req.body;
+
+  if (!transcript) {
+    return res.status(400).json({ error: "Transcript missing" });
+  }
 
   const prompt = `
-You are an interview evaluator.
+You are a strict but encouraging interview coach.
 
-Inputs:
-Resume:
-${resume}
+Analyze the following interview answer for the role of ${role} (${level}).
 
-Job Description:
-${jd}
+Transcript:
+"""${transcript}"""
 
-Interview Transcript:
-${transcript}
+Return ONLY valid JSON:
 
-Tasks:
-1. Score (1-5) for:
-   - Clarity
-   - Relevance
-   - Structure
-   - Depth
-   - Confidence
-   - JD Match
-2. Explain EACH score clearly
-3. Identify:
-   - Strengths
-   - Weaknesses
-   - Missed opportunities
-4. Give actionable improvements
-Tone: Constructive, humane, encouraging.
-
-Return JSON.
+{
+  "scores": {
+    "clarity": 1-5,
+    "structure": 1-5,
+    "relevance": 1-5,
+    "confidence": 1-5
+  },
+  "strengths": [string],
+  "weaknesses": [string],
+  "improvements": [string],
+  "overall_feedback": string
+}
 `;
 
-  const response = await groq.chat.completions.create({
-    model: "mixtral-8x7b-32768",
-    messages: [{ role: "user", content: prompt }]
+  const completion = await groq.chat.completions.create({
+    model: "llama3-70b-8192",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.3
   });
 
-  res.json({ feedback: response.choices[0].message.content });
+  const output = completion.choices[0].message.content;
+
+  try {
+    res.json(JSON.parse(output));
+  } catch {
+    res.json({
+      error: "AI output parsing failed",
+      raw: output
+    });
+  }
 });
 
 export default router;
