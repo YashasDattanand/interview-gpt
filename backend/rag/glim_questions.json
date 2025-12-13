@@ -1,14 +1,13 @@
 {
   "Product Manager": [
-    "Tell me about a product you worked on end-to-end.",
-    "How do you prioritize features when timelines are tight?",
-    "Describe a time you handled stakeholder conflict.",
-    "How do you decide what metrics define success?",
-    "Tell me about a failure and what you learned."
+    "Tell me about yourself.",
+    "Describe a product you worked on end-to-end.",
+    "How do you prioritize features?",
+    "Tell me about a stakeholder conflict.",
+    "What metrics define success for a product?"
   ],
   "Consulting": [
     "Walk me through a market sizing problem.",
-    "How would you enter a new market?",
-    "Describe a time you influenced without authority."
+    "How would you enter a new market?"
   ]
 }
