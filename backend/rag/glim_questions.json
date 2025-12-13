@@ -1,0 +1,12 @@
+[
+  {
+    "college": "GLIM Chennai",
+    "company": "Amazon",
+    "role": "PM",
+    "round": "Product",
+    "question": "Design a feature to improve Prime retention",
+    "skills": ["Product Sense", "Metrics"],
+    "difficulty": "Medium",
+    "source": "real"
+  }
+]
