@@ -5,6 +5,9 @@ import dotenv from "dotenv";
 import interviewRoutes from "./routes/interview.js";
 import feedbackRoutes from "./routes/feedback.js";
 import resumeRoutes from "./routes/resume.js";
+import interviewFlowRoutes from "./routes/interviewFlow.js";
+app.use("/interview-flow", interviewFlowRoutes);
+
 
 dotenv.config();
 
@@ -25,3 +28,4 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () =>
   console.log(`Backend running on port ${PORT}`)
 );
+
