@@ -11,17 +11,17 @@ export default function Page() {
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [transcript, setTranscript] = useState("");
   const [feedback, setFeedback] = useState<any>(null);
-  const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Speech recognition
+  // ===== SPEECH TO TEXT =====
   let recognition: any;
 
-  const startSpeechToText = () => {
-    const SpeechRecognition =
+  const startSpeech = () => {
+    const SR =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
 
-    recognition = new SpeechRecognition();
+    recognition = new SR();
     recognition.continuous = true;
     recognition.lang = "en-US";
 
@@ -34,18 +34,17 @@ export default function Page() {
     };
 
     recognition.start();
-    (window as any).recognition = recognition;
+    (window as any).rec = recognition;
   };
 
+  // ===== VIDEO RECORDING =====
   const startRecording = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true
     });
 
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
-    }
+    if (videoRef.current) videoRef.current.srcObject = stream;
 
     const recorder = new MediaRecorder(stream);
     mediaRecorderRef.current = recorder;
@@ -61,13 +60,13 @@ export default function Page() {
     };
 
     recorder.start();
-    startSpeechToText();
+    startSpeech();
     setRecording(true);
   };
 
   const stopRecording = () => {
     mediaRecorderRef.current?.stop();
-    (window as any).recognition?.stop();
+    (window as any).rec?.stop();
 
     const stream = videoRef.current?.srcObject as MediaStream;
     stream?.getTracks().forEach(t => t.stop());
@@ -75,38 +74,33 @@ export default function Page() {
     setRecording(false);
   };
 
-  const uploadVideo = async () => {
-    if (!videoBlob) return alert("No video");
+  // ===== AI FEEDBACK (GROQ) =====
+  const getAIFeedback = async () => {
+    if (!transcript) return alert("Transcript empty");
 
-    setUploading(true);
-    const fd = new FormData();
-    fd.append("video", videoBlob);
+    setLoading(true);
+    setFeedback(null);
 
-    await fetch(
-      `${process.env.NEXT_PUBLIC_BACKEND_URL}/interview/upload`,
-      { method: "POST", body: fd }
-    );
-
-    setUploading(false);
-    alert("Video uploaded");
-  };
-
-  const getFeedback = async () => {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_BACKEND_URL}/feedback`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript })
+        body: JSON.stringify({
+          transcript,
+          role: "Product Manager",
+          level: "PGPM Student"
+        })
       }
     );
 
     const data = await res.json();
     setFeedback(data);
+    setLoading(false);
   };
 
   return (
-    <main style={{ padding: 24 }}>
+    <main style={{ padding: 24, maxWidth: 900 }}>
       <h1>Video Interview</h1>
 
       <video
@@ -116,29 +110,44 @@ export default function Page() {
         style={{ width: 420, border: "1px solid #ccc" }}
       />
 
-      <div>
+      <div style={{ margin: "10px 0" }}>
         {!recording && <button onClick={startRecording}>Start</button>}
         {recording && <button onClick={stopRecording}>Stop</button>}
       </div>
-
-      {videoBlob && (
-        <button onClick={uploadVideo} disabled={uploading}>
-          Upload Video
-        </button>
-      )}
 
       {transcript && (
         <>
           <h3>Transcript</h3>
           <p>{transcript}</p>
-          <button onClick={getFeedback}>Get AI Feedback</button>
+
+          <button onClick={getAIFeedback}>
+            {loading ? "Analyzing..." : "Get AI Feedback"}
+          </button>
         </>
       )}
 
       {feedback && (
         <>
-          <h3>Scores</h3>
-          <pre>{JSON.stringify(feedback, null, 2)}</pre>
+          <h2>AI Feedback</h2>
+
+          <h4>Scores</h4>
+          <ul>
+            <li>Clarity: {feedback.scores?.clarity}/5</li>
+            <li>Structure: {feedback.scores?.structure}/5</li>
+            <li>Relevance: {feedback.scores?.relevance}/5</li>
+            <li>Confidence: {feedback.scores?.confidence}/5</li>
+          </ul>
+
+          <h4>Strengths</h4>
+          <ul>{feedback.strengths?.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul>
+
+          <h4>Weaknesses</h4>
+          <ul>{feedback.weaknesses?.map((w: string, i: number) => <li key={i}>{w}</li>)}</ul>
+
+          <h4>Improvements</h4>
+          <ul>{feedback.improvements?.map((im: string, i: number) => <li key={i}>{im}</li>)}</ul>
+
+          <p><b>Overall:</b> {feedback.overall_feedback}</p>
         </>
       )}
     </main>
