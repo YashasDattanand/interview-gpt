@@ -1,3 +1,6 @@
+// ===============================
+// CORE IMPORTS
+// ===============================
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -5,76 +8,79 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Load env variables
+// ===============================
+// ENV SETUP
+// ===============================
 dotenv.config();
+console.log("GROQ_API_KEY =", process.env.GROQ_API_KEY);
 
-// Fix __dirname for ES modules
+// Fix __dirname for ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Import routes
+// ===============================
+// APP INIT
+// ===============================
+const app = express();
+
+// ===============================
+// MIDDLEWARE
+// ===============================
+app.use(
+  cors({
+    origin: "*", // MVP only
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type"]
+  })
+);
+
+app.use(express.json({ limit: "15mb" }));
+app.use(express.urlencoded({ extended: true }));
+
+// ===============================
+// ENSURE UPLOADS FOLDER EXISTS
+// ===============================
+const uploadsPath = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadsPath)) {
+  fs.mkdirSync(uploadsPath);
+}
+
+// ===============================
+// ROUTES IMPORT
+// ===============================
 import authRoutes from "./routes/auth.js";
 import resumeRoutes from "./routes/resume.js";
 import interviewRoutes from "./routes/interview.js";
 import feedbackRoutes from "./routes/feedback.js";
 import uploadRoutes from "./routes/upload.js";
 
-// Create app
-const app = express();
-
-// =====================
-// MIDDLEWARE
-// =====================
-
-// CORS (allow frontend to talk to backend)
-app.use(
-  cors({
-    origin: "*", // for MVP; restrict later
-    methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type"]
-  })
-);
-
-// Body parsing
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
-
-// Ensure uploads folder exists (for PDF uploads)
-const uploadsDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
-}
-
-// =====================
-// ROUTES
-// =====================
-
+// ===============================
+// ROUTES REGISTER
+// ===============================
 app.get("/", (req, res) => {
   res.send("InterviewGPT Backend is running 🚀");
 });
 
-app.use("/auth", authRoutes);           // signup / login
-app.use("/resume", resumeRoutes);       // resume ↔ JD matcher
-app.use("/interview", interviewRoutes); // AI interviewer (RAG)
-app.use("/feedback", feedbackRoutes);   // scoring + feedback
-app.use("/upload", uploadRoutes);       // resume/JD upload
+app.use("/auth", authRoutes);
+app.use("/resume", resumeRoutes);
+app.use("/interview", interviewRoutes);
+app.use("/feedback", feedbackRoutes);
+app.use("/upload", uploadRoutes);
 
-// =====================
-// ERROR HANDLING
-// =====================
-
+// ===============================
+// GLOBAL ERROR HANDLER
+// ===============================
 app.use((err, req, res, next) => {
   console.error("SERVER ERROR:", err);
   res.status(500).json({
     error: "Internal Server Error",
-    details: err.message
+    message: err.message
   });
 });
 
-// =====================
+// ===============================
 // START SERVER
-// =====================
-
+// ===============================
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
