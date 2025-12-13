@@ -5,33 +5,27 @@ const router = express.Router();
 
 router.post("/", async (req, res) => {
   try {
-    const { transcript, role = "General", level = "Student" } = req.body;
-
-    if (!transcript) {
-      return res.status(400).json({ error: "Transcript missing" });
-    }
+    const { transcript, role } = req.body;
 
     const prompt = `
-You are a strict but encouraging interview coach.
+You are an interview coach.
 
-Analyze the following interview answer for the role of ${role} (${level}).
+Evaluate this interview transcript for a ${role} candidate:
 
-Transcript:
-"""${transcript}"""
+${transcript}
 
-Return ONLY valid JSON:
-
+Return STRICT JSON:
 {
   "scores": {
     "clarity": 1-5,
     "structure": 1-5,
-    "relevance": 1-5,
-    "confidence": 1-5
+    "confidence": 1-5,
+    "relevance": 1-5
   },
   "strengths": [string],
   "weaknesses": [string],
   "improvements": [string],
-  "overall_feedback": string
+  "summary": string
 }
 `;
 
@@ -41,15 +35,9 @@ Return ONLY valid JSON:
       temperature: 0.3
     });
 
-    const output = completion.choices[0].message.content;
-
-    res.json(JSON.parse(output));
-  } catch (err) {
-    console.error("Groq error:", err);
-    res.status(500).json({
-      error: "AI feedback generation failed",
-      details: err.message
-    });
+    res.json(JSON.parse(completion.choices[0].message.content));
+  } catch {
+    res.status(500).json({ error: "Feedback generation failed" });
   }
 });
 
