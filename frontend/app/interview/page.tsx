@@ -1,17 +1,22 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+type Message = {
+  role: "ai" | "user";
+  content: string;
+};
 
 export default function Page() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [role] = useState("Product Manager");
   const [recording, setRecording] = useState(false);
-  const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [transcript, setTranscript] = useState("");
-  const [feedback, setFeedback] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
 
   // ===== SPEECH TO TEXT =====
   let recognition: any;
@@ -25,10 +30,10 @@ export default function Page() {
     recognition.continuous = true;
     recognition.lang = "en-US";
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (e: any) => {
       let text = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        text += event.results[i][0].transcript + " ";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        text += e.results[i][0].transcript + " ";
       }
       setTranscript(prev => prev + text);
     };
@@ -47,16 +52,10 @@ export default function Page() {
     if (videoRef.current) videoRef.current.srcObject = stream;
 
     const recorder = new MediaRecorder(stream);
-    mediaRecorderRef.current = recorder;
+    recorderRef.current = recorder;
 
     recorder.ondataavailable = e => {
       if (e.data.size) chunksRef.current.push(e.data);
-    };
-
-    recorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: "video/webm" });
-      setVideoBlob(blob);
-      chunksRef.current = [];
     };
 
     recorder.start();
@@ -65,7 +64,7 @@ export default function Page() {
   };
 
   const stopRecording = () => {
-    mediaRecorderRef.current?.stop();
+    recorderRef.current?.stop();
     (window as any).rec?.stop();
 
     const stream = videoRef.current?.srcObject as MediaStream;
@@ -74,80 +73,86 @@ export default function Page() {
     setRecording(false);
   };
 
-  // ===== AI FEEDBACK (GROQ) =====
-  const getAIFeedback = async () => {
-    if (!transcript) return alert("Transcript empty");
-
-    setLoading(true);
-    setFeedback(null);
+  // ===== GET NEXT QUESTION =====
+  const getNextQuestion = async (answer: string) => {
+    const history = messages.reduce((acc: any[], m, i) => {
+      if (m.role === "ai" && messages[i + 1]?.role === "user") {
+        acc.push({
+          question: m.content,
+          answer: messages[i + 1].content
+        });
+      }
+      return acc;
+    }, []);
 
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_BACKEND_URL}/feedback`,
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/interview-flow/next`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          transcript,
-          role: "Product Manager",
-          level: "PGPM Student"
-        })
+        body: JSON.stringify({ role, history })
       }
     );
 
     const data = await res.json();
-    setFeedback(data);
-    setLoading(false);
+
+    setMessages(prev => [...prev, { role: "ai", content: data.question }]);
   };
+
+  // ===== SEND TEXT ANSWER =====
+  const sendTextAnswer = async () => {
+    if (!input) return;
+
+    setMessages(prev => [...prev, { role: "user", content: input }]);
+    setInput("");
+    await getNextQuestion(input);
+  };
+
+  // ===== SEND VIDEO ANSWER =====
+  const sendVideoAnswer = async () => {
+    if (!transcript) return alert("No transcript");
+
+    setMessages(prev => [...prev, { role: "user", content: transcript }]);
+    setTranscript("");
+    await getNextQuestion(transcript);
+  };
+
+  // ===== INIT FIRST QUESTION =====
+  useEffect(() => {
+    setMessages([{ role: "ai", content: "Let’s start. Tell me about yourself." }]);
+  }, []);
 
   return (
     <main style={{ padding: 24, maxWidth: 900 }}>
-      <h1>Video Interview</h1>
+      <h1>GLIM Mock Interview</h1>
 
-      <video
-        ref={videoRef}
-        autoPlay
-        muted
-        style={{ width: 420, border: "1px solid #ccc" }}
-      />
-
-      <div style={{ margin: "10px 0" }}>
-        {!recording && <button onClick={startRecording}>Start</button>}
-        {recording && <button onClick={stopRecording}>Stop</button>}
+      <div style={{ border: "1px solid #ccc", padding: 12, minHeight: 300 }}>
+        {messages.map((m, i) => (
+          <p key={i}>
+            <b>{m.role === "ai" ? "Interviewer" : "You"}:</b> {m.content}
+          </p>
+        ))}
       </div>
+
+      <h3>Answer by Text</h3>
+      <input
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        placeholder="Type your answer..."
+      />
+      <button onClick={sendTextAnswer}>Send Text</button>
+
+      <h3>OR Answer by Video</h3>
+      <video ref={videoRef} autoPlay muted width={320} />
+
+      {!recording && <button onClick={startRecording}>Start Video</button>}
+      {recording && <button onClick={stopRecording}>Stop Video</button>}
+      <button onClick={sendVideoAnswer}>Send Video Answer</button>
 
       {transcript && (
         <>
-          <h3>Transcript</h3>
+          <h4>Transcript</h4>
           <p>{transcript}</p>
-
-          <button onClick={getAIFeedback}>
-            {loading ? "Analyzing..." : "Get AI Feedback"}
-          </button>
-        </>
-      )}
-
-      {feedback && (
-        <>
-          <h2>AI Feedback</h2>
-
-          <h4>Scores</h4>
-          <ul>
-            <li>Clarity: {feedback.scores?.clarity}/5</li>
-            <li>Structure: {feedback.scores?.structure}/5</li>
-            <li>Relevance: {feedback.scores?.relevance}/5</li>
-            <li>Confidence: {feedback.scores?.confidence}/5</li>
-          </ul>
-
-          <h4>Strengths</h4>
-          <ul>{feedback.strengths?.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul>
-
-          <h4>Weaknesses</h4>
-          <ul>{feedback.weaknesses?.map((w: string, i: number) => <li key={i}>{w}</li>)}</ul>
-
-          <h4>Improvements</h4>
-          <ul>{feedback.improvements?.map((im: string, i: number) => <li key={i}>{im}</li>)}</ul>
-
-          <p><b>Overall:</b> {feedback.overall_feedback}</p>
         </>
       )}
     </main>
