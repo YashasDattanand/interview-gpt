@@ -6,7 +6,7 @@ import { groq } from "../utils/groq.js";
 const router = express.Router();
 
 const ragPath = path.join(process.cwd(), "rag", "glim_questions.json");
-const ragData = JSON.parse(fs.readFileSync(ragPath, "utf-8"));
+const rag = JSON.parse(fs.readFileSync(ragPath, "utf-8"));
 
 router.post("/next", async (req, res) => {
   try {
@@ -16,42 +16,48 @@ router.post("/next", async (req, res) => {
       return res.status(400).json({ error: "Role missing" });
     }
 
-    const baseQuestions = ragData[role] || [];
+    const baseQuestions = rag[role] || [];
 
-    const historyText = (history || [])
+    // SAFETY: stop if too many questions
+    if (history && history.length >= baseQuestions.length) {
+      return res.json({ done: true });
+    }
+
+    const asked = history?.map(h => h.question) || [];
+
+    const remaining = baseQuestions.filter(
+      q => !asked.includes(q)
+    );
+
+    // Ask directly from RAG first
+    if (remaining.length > 0) {
+      return res.json({ question: remaining[0] });
+    }
+
+    // Adaptive follow-up via Groq
+    const context = history
       .map(h => `Q: ${h.question}\nA: ${h.answer}`)
       .join("\n");
 
     const prompt = `
-You are an interviewer for GLIM students.
+You are interviewing a GLIM student for ${role}.
+Ask ONE relevant follow-up question based on this conversation:
 
-Base questions:
-${baseQuestions.join("\n")}
-
-Conversation so far:
-${historyText}
-
-Rules:
-- Ask ONE interview question
-- Do NOT repeat previous questions
-- Keep it role-relevant
-- Be realistic and human
-
-Return ONLY the question text.
+${context}
 `;
 
     const completion = await groq.chat.completions.create({
       model: "llama-3.1-8b-instant",
       messages: [{ role: "user", content: prompt }],
-      temperature: 0.6
+      temperature: 0.5
     });
 
     res.json({
       question: completion.choices[0].message.content.trim()
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to generate next question" });
+    console.error("Interview flow error:", err);
+    res.status(500).json({ error: "Interview flow failed" });
   }
 });
 
