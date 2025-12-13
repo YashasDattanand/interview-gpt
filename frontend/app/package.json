@@ -1,0 +1,19 @@
+{
+  "name": "interviewgpt-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "groq-sdk": "^0.37.0",
+    "lowdb": "^7.0.1",
+    "multer": "^2.0.2",
+    "pdf-parse": "^2.4.5"
+  }
+}
