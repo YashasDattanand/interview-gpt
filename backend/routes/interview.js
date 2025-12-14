@@ -1,43 +1,96 @@
-import express from "express";
-import fs from "fs";
-import path from "path";
-import { groq } from "../utils/groq.js";
+const chat = document.getElementById("chat");
+const answerBox = document.getElementById("answerBox");
 
-const router = express.Router();
+let recognition;
+let isInterviewActive = true;
+let currentQuestion = "";
 
-router.post("/next", async (req, res) => {
-  const { role, experience, company, history, lastAnswer } = req.body;
+/* ---------- INITIAL LOAD ---------- */
+window.onload = () => {
+  fetchNextQuestion("start");
+};
 
-  const ragPath = path.resolve(`backend/rag/${role}.json`);
-  const ragData = JSON.parse(fs.readFileSync(ragPath, "utf-8"));
+/* ---------- CHAT HELPERS ---------- */
+function addMessage(role, text) {
+  const div = document.createElement("div");
+  div.className = role === "coach" ? "coach-msg" : "user-msg";
+  div.innerText = `${role === "coach" ? "Coach" : "You"}: ${text}`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
 
-  const prompt = `
-You are a human interviewer.
+/* ---------- TEXT TO SPEECH (COACH AUDIO) ---------- */
+function speak(text) {
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.95;
+  speechSynthesis.speak(utterance);
+}
 
-Candidate experience: ${experience}
-Target company: ${company || "General"}
-Key skills: ${ragData.skills.join(", ")}
+/* ---------- MIC CONTROLS (GLOBAL — FIXED) ---------- */
+function startMic() {
+  if (!("webkitSpeechRecognition" in window)) {
+    alert("Speech Recognition not supported");
+    return;
+  }
 
-Conversation so far:
-${history}
+  recognition = new webkitSpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = "en-US";
 
-Latest answer:
-"${lastAnswer}"
+  recognition.onresult = (event) => {
+    let transcript = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+    answerBox.value = transcript;
+  };
 
-Decide ONE of the following:
-- Ask a follow-up question if the answer is weak or vague
-- Probe deeper if answer is good
-- Move to next topic naturally
+  recognition.start();
+}
 
-Ask only ONE question. Be conversational.
-`;
+function stopMic() {
+  if (recognition) recognition.stop();
+}
 
-  const completion = await groq.chat.completions.create({
-    model: "llama-3.1-8b-instant",
-    messages: [{ role: "user", content: prompt }]
+/* ---------- SUBMIT ANSWER ---------- */
+function submitAnswer() {
+  const answer = answerBox.value.trim();
+  if (!answer || !isInterviewActive) return;
+
+  addMessage("user", answer);
+  answerBox.value = "";
+
+  fetchNextQuestion(answer);
+}
+
+/* ---------- FETCH NEXT QUESTION ---------- */
+function fetchNextQuestion(answer) {
+  fetch(`${BACKEND_URL}/interview-flow/next`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ answer })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.done) {
+      endInterview();
+      return;
+    }
+
+    currentQuestion = data.question;
+    addMessage("coach", currentQuestion);
+    speak(currentQuestion);
+  })
+  .catch(err => {
+    console.error(err);
+    alert("Interview error");
   });
+}
 
-  res.json({ question: completion.choices[0].message.content });
-});
-
-export default router;
+/* ---------- END INTERVIEW ---------- */
+function endInterview() {
+  isInterviewActive = false;
+  stopMic();
+  window.location.href = "/feedback.html";
+}
