@@ -1,107 +1,39 @@
 "use client";
-
 import { useEffect, useState } from "react";
-import Chart from "chart.js/auto";
 
 const BACKEND = "https://interview-gpt-backend-00vj.onrender.com";
 
-type Feedback = {
-  overallScore: number;
-  clarity: number;
-  structure: number;
-  relevance: number;
-  strengths: string[];
-  weaknesses: string[];
-  improvements: string[];
-  summary: string;
-};
-
 export default function FeedbackPage() {
-  const [data, setData] = useState<Feedback | null>(null);
-  const [error, setError] = useState("");
+  const [data, setData] = useState<any>(null);
 
   useEffect(() => {
+    if (!localStorage.getItem("interviewDone")) {
+      window.location.href = "/";
+      return;
+    }
+
     fetch(`${BACKEND}/feedback`, { method: "POST" })
-      .then(res => res.json())
-      .then(json => {
-        if (json.error) {
-          setError(json.error);
-          return;
-        }
-        setData(json);
-        drawChart(json);
-      })
-      .catch(() => setError("Failed to load feedback"));
+      .then(r => r.json())
+      .then(setData);
   }, []);
 
-  function drawChart(d: Feedback) {
-    const ctx = document.getElementById("scoreChart") as HTMLCanvasElement;
-    if (!ctx) return;
-
-    new Chart(ctx, {
-      type: "radar",
-      data: {
-        labels: ["Clarity", "Structure", "Relevance"],
-        datasets: [
-          {
-            label: "Score",
-            data: [d.clarity, d.structure, d.relevance],
-            backgroundColor: "rgba(99, 102, 241, 0.2)",
-            borderColor: "rgb(99, 102, 241)",
-            borderWidth: 2,
-          },
-        ],
-      },
-      options: {
-        scales: {
-          r: {
-            min: 0,
-            max: 10,
-            ticks: { stepSize: 2 },
-          },
-        },
-      },
-    });
-  }
-
-  if (error) {
-    return <p style={{ padding: 20, color: "red" }}>{error}</p>;
-  }
-
-  if (!data) {
-    return <p style={{ padding: 20 }}>Loading feedback...</p>;
-  }
+  if (!data) return <p>Loading feedback…</p>;
 
   return (
-    <div style={{ padding: 24, maxWidth: 900, margin: "auto" }}>
-      <h1>Interview Feedback</h1>
-
+    <div style={{ padding: 40 }}>
+      <h1>Feedback</h1>
       <h2>Overall Score: {data.overallScore}/10</h2>
 
-      <canvas id="scoreChart" width="300" height="300"></canvas>
-
-      <p style={{ marginTop: 20 }}>{data.summary}</p>
-
       <h3>Strengths</h3>
-      <ul>
-        {data.strengths.map((s, i) => (
-          <li key={i}>{s}</li>
-        ))}
-      </ul>
+      <ul>{data.strengths.map((s:string,i:number)=><li key={i}>{s}</li>)}</ul>
 
       <h3>Weaknesses</h3>
-      <ul>
-        {data.weaknesses.map((w, i) => (
-          <li key={i}>{w}</li>
-        ))}
-      </ul>
+      <ul>{data.weaknesses.map((w:string,i:number)=><li key={i}>{w}</li>)}</ul>
 
       <h3>Improvements</h3>
-      <ul>
-        {data.improvements.map((imp, i) => (
-          <li key={i}>{imp}</li>
-        ))}
-      </ul>
+      <ul>{data.improvements.map((x:string,i:number)=><li key={i}>{x}</li>)}</ul>
+
+      <p>{data.summary}</p>
     </div>
   );
 }
