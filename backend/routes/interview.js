@@ -1,28 +1,22 @@
 import express from "express";
+import fs from "fs";
+
 const router = express.Router();
 
-let conversation = [];
+router.post("/next", async (req, res) => {
+  const { role, experience, company, history } = req.body;
 
-router.post("/start", (req, res) => {
-  conversation = [];
-  res.json({
-    role: "Coach",
-    message: "Tell me about yourself."
-  });
-});
+  const roleData = JSON.parse(
+    fs.readFileSync(`./rag/${role}.json`, "utf-8")
+  );
 
-router.post("/next", (req, res) => {
-  const { answer } = req.body;
-
-  if (!answer) {
-    return res.status(400).json({ error: "Answer required" });
-  }
-
-  conversation.push(answer);
+  const question =
+    roleData.questions[Math.floor(Math.random() * roleData.questions.length)];
 
   res.json({
-    role: "Coach",
-    message: "What brings you here today?"
+    question: company
+      ? `${question} (specifically in context of ${company})`
+      : question
   });
 });
 
