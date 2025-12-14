@@ -1,35 +1,29 @@
 import express from "express";
 const router = express.Router();
 
-let turn = 0;
-
-const starterQuestion = "Tell me about yourself.";
-const followUps = [
-  "Can you go a bit deeper into that?",
-  "What challenges did you face?",
-  "What was your impact?",
-  "How would you improve that experience?"
-];
+let conversation = [];
 
 router.post("/start", (req, res) => {
-  turn = 0;
-  res.json({ question: starterQuestion });
+  conversation = [];
+  res.json({
+    role: "Coach",
+    message: "Tell me about yourself."
+  });
 });
 
 router.post("/next", (req, res) => {
   const { answer } = req.body;
 
-  if (!answer || answer.trim().length === 0) {
-    return res.json({ question: "Please try answering the question." });
+  if (!answer) {
+    return res.status(400).json({ error: "Answer required" });
   }
 
-  turn++;
+  conversation.push(answer);
 
-  if (turn >= followUps.length) {
-    return res.json({ done: true });
-  }
-
-  res.json({ question: followUps[turn] });
+  res.json({
+    role: "Coach",
+    message: "What brings you here today?"
+  });
 });
 
 export default router;
