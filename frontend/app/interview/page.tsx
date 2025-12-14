@@ -1,25 +1,33 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 const BACKEND = "https://interview-gpt-backend-00vj.onrender.com";
 
 export default function InterviewPage() {
+  const router = useRouter();
   const [messages, setMessages] = useState<{role:string,text:string}[]>([]);
   const [input, setInput] = useState("");
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
+    const setup = localStorage.getItem("setup");
+    if (!setup) {
+      router.replace("/");
+      return;
+    }
+
     fetch(`${BACKEND}/interview/start`, { method: "POST" })
-      .then(res => res.json())
-      .then(data => {
-        setMessages([{ role: "Coach", text: data.question }]);
-        speak(data.question);
+      .then(r => r.json())
+      .then(d => {
+        setMessages([{ role: "Coach", text: d.question }]);
+        speak(d.question);
       });
   }, []);
 
   function speak(text: string) {
     const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.95;
     speechSynthesis.speak(u);
   }
 
@@ -29,7 +37,7 @@ export default function InterviewPage() {
     rec.continuous = true;
     rec.lang = "en-US";
     rec.onresult = (e:any) => {
-      setInput(prev => prev + e.results[e.results.length - 1][0].transcript);
+      setInput(prev => prev + " " + e.results[e.results.length-1][0].transcript);
     };
     rec.start();
     recognitionRef.current = rec;
@@ -43,18 +51,19 @@ export default function InterviewPage() {
     if (!input.trim()) return;
 
     setMessages(m => [...m, { role: "You", text: input }]);
+    const answer = input;
     setInput("");
 
     const res = await fetch(`${BACKEND}/interview/next`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ answer: input })
+      body: JSON.stringify({ answer })
     });
 
     const data = await res.json();
-
     if (data.done) {
-      window.location.href = "/feedback";
+      localStorage.setItem("interviewDone", "1");
+      router.push("/feedback");
     } else {
       setMessages(m => [...m, { role: "Coach", text: data.question }]);
       speak(data.question);
@@ -62,14 +71,12 @@ export default function InterviewPage() {
   }
 
   return (
-    <div style={{ padding: 24 }}>
-      <h2>Mock Interview</h2>
+    <div style={{ padding: 30 }}>
+      <h2>Interview</h2>
 
-      <div>
-        {messages.map((m, i) => (
-          <p key={i}><b>{m.role}:</b> {m.text}</p>
-        ))}
-      </div>
+      {messages.map((m, i) => (
+        <p key={i}><b>{m.role}:</b> {m.text}</p>
+      ))}
 
       <textarea
         value={input}
@@ -78,11 +85,10 @@ export default function InterviewPage() {
         style={{ width: "100%" }}
       />
 
-      <div>
-        <button onClick={startMic}>🎤 Start</button>
-        <button onClick={stopMic}>⛔ Stop</button>
-        <button onClick={submit}>Submit</button>
-      </div>
+      <br />
+      <button onClick={startMic}>🎤 Start</button>
+      <button onClick={stopMic}>⛔ Stop</button>
+      <button onClick={submit}>Submit</button>
     </div>
   );
 }
