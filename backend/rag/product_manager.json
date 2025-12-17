@@ -1,25 +1,129 @@
 {
   "role": "Product Manager",
-  "contexts": [
+  "leveling": {
+    "0-2": {
+      "focus": [
+        "foundational PM thinking",
+        "user-centric mindset",
+        "basic execution exposure"
+      ],
+      "question_intent": [
+        "understanding motivation for PM",
+        "clarity of thinking",
+        "communication basics"
+      ]
+    },
+    "3-5": {
+      "focus": [
+        "end-to-end ownership",
+        "stakeholder management",
+        "prioritization frameworks",
+        "metrics and outcomes"
+      ],
+      "question_intent": [
+        "decision making",
+        "trade-off handling",
+        "impact measurement"
+      ]
+    },
+    "6+": {
+      "focus": [
+        "strategy",
+        "product vision",
+        "org-level influence",
+        "mentorship"
+      ],
+      "question_intent": [
+        "long-term thinking",
+        "scaling products",
+        "leadership maturity"
+      ]
+    }
+  },
+
+  "core_question_bank": [
     {
-      "company": "General",
-      "experience": "0-2",
-      "themes": ["fundamentals", "user thinking"],
-      "notes": "Early PM interviews focus on structured thinking and basics.",
-      "sample_questions": [
-        "How do you define success for a product?",
-        "How would you identify user pain points?"
+      "id": "intro_background",
+      "question": "Tell me about your background and how you got into product management.",
+      "follow_ups": [
+        "What specifically attracted you to product management?",
+        "What part of the PM role excites you the most today?"
       ]
     },
     {
-      "company": "Google",
-      "experience": "1-3",
-      "themes": ["prioritization", "stakeholders"],
-      "notes": "Google PM interviews emphasize trade-offs and clarity.",
-      "sample_questions": [
-        "How would you prioritize features with conflicting stakeholders?",
-        "How do you balance user needs and business goals?"
+      "id": "product_success",
+      "question": "How do you define success for a product?",
+      "follow_ups": [
+        "What metrics would you look at in the first 30 days after launch?",
+        "How would your definition of success change for a B2B vs B2C product?"
+      ]
+    },
+    {
+      "id": "end_to_end",
+      "question": "Describe a product or feature you worked on end-to-end.",
+      "follow_ups": [
+        "What problem were you solving?",
+        "What trade-offs did you have to make?",
+        "What would you do differently if given another chance?"
+      ]
+    },
+    {
+      "id": "prioritization",
+      "question": "How do you prioritize features when everything seems important?",
+      "follow_ups": [
+        "Have you used any frameworks like RICE or MoSCoW?",
+        "Tell me about a time prioritization upset a stakeholder."
+      ]
+    },
+    {
+      "id": "stakeholders",
+      "question": "How do you manage conflicting inputs from engineering, design, and business?",
+      "follow_ups": [
+        "Can you give a real example?",
+        "How did you handle pushback?"
       ]
     }
+  ],
+
+  "probing_rules": {
+    "weak_answer": [
+      "Can you go a bit deeper into that?",
+      "Why do you think that approach worked?",
+      "What was the impact of that decision?"
+    ],
+    "vague_answer": [
+      "Can you make that more concrete with an example?",
+      "What exactly did *you* do in that situation?"
+    ],
+    "strong_answer": [
+      "That’s interesting. Let’s build on that.",
+      "How would this scale in a larger organization?"
+    ]
+  },
+
+  "company_specific_angles": {
+    "google": [
+      "focus on user-first design",
+      "data-driven decision making",
+      "scale and performance trade-offs"
+    ],
+    "amazon": [
+      "customer obsession",
+      "working backwards",
+      "ownership and accountability"
+    ],
+    "startup": [
+      "ambiguity",
+      "speed vs correctness",
+      "resource constraints"
+    ]
+  },
+
+  "behavioral_expectations": [
+    "Do NOT repeat the same question verbatim",
+    "Always reference the candidate’s last answer before asking the next question",
+    "If the answer is weak, probe instead of moving on",
+    "Maintain a natural, human interview tone",
+    "Act like a real interview coach, not a chatbot"
   ]
 }
