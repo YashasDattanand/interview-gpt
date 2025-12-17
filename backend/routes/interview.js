@@ -1,64 +1,59 @@
 import express from "express";
-import fs from "fs";
 import fetch from "node-fetch";
+import fs from "fs";
 
 const router = express.Router();
 
-router.post("/next", async (req, res) => {
-  const { role, company, experience, history } = req.body;
-
-  if (!role) {
-    return res.status(400).json({ error: "Role is required" });
-  }
-
-  // 🔒 SAFE RAG LOAD
-  let ragText = "";
+router.post("/", async (req, res) => {
   try {
-    ragText = fs.readFileSync(`./rag/${role}.json`, "utf8");
-  } catch {
-    ragText = "General interview questions.";
-  }
+    const { role, experience, company, conversation, userText } = req.body;
 
-  const systemPrompt = `
-You are an experienced interview coach.
+    const ragPath = `./rag/${role}.json`;
+    const ragData = fs.existsSync(ragPath)
+      ? JSON.parse(fs.readFileSync(ragPath, "utf-8"))
+      : [];
 
-Rules:
-- Ask ONE question at a time
-- Ask follow-ups if the answer is shallow
-- Do NOT repeat questions
-- Tailor to role=${role}, experience=${experience}, company=${company}
+    const systemPrompt = `
+You are a professional interview coach.
+Role: ${role}
+Experience: ${experience}
+Company: ${company}
 
-RAG Context:
-${ragText}
+Ask ONE clear interview question at a time.
+Never repeat questions.
+Ask follow-ups based on previous answers.
 `;
 
-  const messages = [
-    { role: "system", content: systemPrompt },
-    ...history
-  ];
+    const messages = [
+      { role: "system", content: systemPrompt },
+      ...conversation
+    ];
 
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "llama3-70b-8192",
-      messages,
-      temperature: 0.7
-    })
-  });
+    if (userText) {
+      messages.push({ role: "user", content: userText });
+    }
 
-  const data = await response.json();
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "llama3-70b-8192",
+        messages
+      })
+    });
 
-  if (!data.choices) {
-    return res.status(500).json({ error: "LLM failed", raw: data });
+    const data = await response.json();
+    const question = data.choices?.[0]?.message?.content;
+
+    res.json({ question });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Interview failed" });
   }
-
-  res.json({
-    question: data.choices[0].message.content
-  });
 });
 
 export default router;
