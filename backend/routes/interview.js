@@ -1,76 +1,78 @@
 import express from "express";
 import fs from "fs";
-import fetch from "node-fetch";
+import Groq from "groq-sdk";
 
 const router = express.Router();
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-router.post("/next", async (req, res) => {
+// In-memory session store (OK for demo)
+const sessions = {};
+
+router.post("/", async (req, res) => {
   try {
-    const { role, experience, company, history = [] } = req.body;
+    const { sessionId, role, experience, company, answer } = req.body;
 
-    if (!role) {
-      return res.status(400).json({ error: "Role missing" });
+    if (!sessionId) {
+      return res.status(400).json({ error: "Missing sessionId" });
     }
 
-    const ragPath = `./rag/${role}.json`;
-    if (!fs.existsSync(ragPath)) {
-      return res.status(400).json({ error: "RAG file not found" });
+    if (!sessions[sessionId]) {
+      sessions[sessionId] = { messages: [] };
     }
 
-    const rag = JSON.parse(fs.readFileSync(ragPath, "utf-8"));
+    const session = sessions[sessionId];
 
-    // fallback question from RAG
-    let fallbackQuestion =
-      rag.contexts?.[0]?.sample_questions?.[0] ||
-      "Tell me about yourself.";
-
-    // build prompt
-    const messages = [
-      {
-        role: "system",
-        content: `You are a professional interview coach. 
-Ask one question at a time. 
-Probe deeper if the answer is weak.
-Be conversational, not robotic.`
-      },
-      ...history,
-      {
-        role: "user",
-        content: "Ask the next interview question."
+    // Load RAG safely
+    let ragText = "";
+    if (role) {
+      const ragPath = `./rag/${role}.json`;
+      if (fs.existsSync(ragPath)) {
+        ragText = JSON.parse(fs.readFileSync(ragPath)).join("\n");
       }
-    ];
+    }
 
-    // Call LLM
-    const llmResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "llama3-8b-8192",
-        messages,
-        temperature: 0.7
-      })
+    if (answer) {
+      session.messages.push({ role: "user", content: answer });
+    }
+
+    const systemPrompt = `
+You are an AI Interview Coach.
+Role: ${role}
+Experience: ${experience} years
+Target company: ${company || "General"}
+
+Rules:
+- Ask ONE question at a time
+- Build follow-ups from user's last answer
+- Do NOT repeat questions
+- Sound human, not robotic
+- Probe deeper if answer is vague
+
+Knowledge Base:
+${ragText}
+`;
+
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.1-70b-versatile",
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...session.messages
+      ],
+      temperature: 0.7
     });
 
-    const data = await llmResponse.json();
-
-    console.log("LLM RAW RESPONSE:", JSON.stringify(data));
-
-    // SAFE EXTRACTION
-    let question = fallbackQuestion;
-    if (data?.choices?.length > 0) {
-      question = data.choices[0].message.content;
+    if (!completion.choices || !completion.choices.length) {
+      throw new Error("LLM returned no choices");
     }
+
+    const question = completion.choices[0].message.content;
+    session.messages.push({ role: "assistant", content: question });
 
     res.json({ question });
 
   } catch (err) {
-    console.error("Interview error:", err);
-    res.json({
-      question: "Let's continue. Can you tell me about a challenge you've handled?"
-    });
+    console.error("Interview error:", err.message);
+    res.status(500).json({ error: "Interview generation failed" });
   }
 });
 
