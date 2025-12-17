@@ -1,80 +1,64 @@
 import express from "express";
 import fs from "fs";
-import path from "path";
-import Groq from "groq-sdk";
+import fetch from "node-fetch";
 
 const router = express.Router();
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-router.post("/", async (req, res) => {
+router.post("/next", async (req, res) => {
+  const { role, company, experience, history } = req.body;
+
+  if (!role) {
+    return res.status(400).json({ error: "Role is required" });
+  }
+
+  // 🔒 SAFE RAG LOAD
+  let ragText = "";
   try {
-    const {
-      role = "general",
-      experience = "0-2",
-      company = "general",
-      history = [],
-      answer = ""
-    } = req.body;
+    ragText = fs.readFileSync(`./rag/${role}.json`, "utf8");
+  } catch {
+    ragText = "General interview questions.";
+  }
 
-    // SAFE RAG FILE LOAD
-    let ragData = "";
-    try {
-      const ragPath = path.resolve(
-        `./rag/${role.toLowerCase()}.json`
-      );
-      ragData = fs.readFileSync(ragPath, "utf-8");
-    } catch {
-      ragData = "General interview questions.";
-    }
+  const systemPrompt = `
+You are an experienced interview coach.
 
-    const messages = [
-      {
-        role: "system",
-        content: `
-You are a human interview coach.
-Do NOT repeat questions.
-Ask follow-ups if answers are weak.
-Adapt based on role (${role}), experience (${experience}), company (${company}).
-Use RAG data when useful:
-${ragData}
-`
-      },
-      ...history,
-      ...(answer
-        ? [{ role: "user", content: answer }]
-        : [])
-    ];
+Rules:
+- Ask ONE question at a time
+- Ask follow-ups if the answer is shallow
+- Do NOT repeat questions
+- Tailor to role=${role}, experience=${experience}, company=${company}
 
-    const completion = await groq.chat.completions.create({
-      model: "llama3-8b-8192",
+RAG Context:
+${ragText}
+`;
+
+  const messages = [
+    { role: "system", content: systemPrompt },
+    ...history
+  ];
+
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "llama3-70b-8192",
       messages,
       temperature: 0.7
-    });
+    })
+  });
 
-    if (
-      !completion ||
-      !completion.choices ||
-      !completion.choices[0]
-    ) {
-      throw new Error("LLM response malformed");
-    }
+  const data = await response.json();
 
-    const question = completion.choices[0].message.content;
-
-    res.json({
-      question,
-      history: [
-        ...history,
-        ...(answer
-          ? [{ role: "user", content: answer }]
-          : []),
-        { role: "assistant", content: question }
-      ]
-    });
-  } catch (err) {
-    console.error("Interview error:", err.message);
-    res.status(500).json({ error: "Interview failed" });
+  if (!data.choices) {
+    return res.status(500).json({ error: "LLM failed", raw: data });
   }
+
+  res.json({
+    question: data.choices[0].message.content
+  });
 });
 
 export default router;
