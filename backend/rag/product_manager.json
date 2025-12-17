@@ -1,13 +1,25 @@
 {
-  "skills": [
-    "product sense",
-    "prioritization",
-    "stakeholder management",
-    "execution",
-    "metrics"
-  ],
-  "glim_experiences": [
-    "Amazon focused heavily on product trade-offs",
-    "Flipkart PM interviews stress metrics & ownership"
+  "role": "Product Manager",
+  "contexts": [
+    {
+      "company": "General",
+      "experience": "0-2",
+      "themes": ["fundamentals", "user thinking"],
+      "notes": "Early PM interviews focus on structured thinking and basics.",
+      "sample_questions": [
+        "How do you define success for a product?",
+        "How would you identify user pain points?"
+      ]
+    },
+    {
+      "company": "Google",
+      "experience": "1-3",
+      "themes": ["prioritization", "stakeholders"],
+      "notes": "Google PM interviews emphasize trade-offs and clarity.",
+      "sample_questions": [
+        "How would you prioritize features with conflicting stakeholders?",
+        "How do you balance user needs and business goals?"
+      ]
+    }
   ]
 }
