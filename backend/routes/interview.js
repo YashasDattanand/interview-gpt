@@ -7,9 +7,21 @@ const router = express.Router();
 router.post("/next", async (req, res) => {
   const { role, experience, company, history } = req.body;
 
-  const roleData = JSON.parse(
-    fs.readFileSync(`./rag/${role}.json`, "utf-8")
-  );
+  if (!role) {
+    return res.status(400).json({
+      error: "Role is missing from request body"
+    });
+  }
+
+  const filePath = `./rag/${role}.json`;
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(400).json({
+      error: `RAG file not found for role: ${role}`
+    });
+  }
+
+  const roleData = JSON.parse(fs.readFileSync(filePath, "utf-8"));
 
   // 🔹 RAG: retrieve relevant chunks
   const retrieved = roleData.contexts.filter(c =>
@@ -59,3 +71,4 @@ Rules:
 });
 
 export default router;
+
