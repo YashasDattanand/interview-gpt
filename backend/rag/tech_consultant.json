@@ -1,12 +1,14 @@
 {
-  "skills": [
-    "problem structuring",
-    "client communication",
-    "business analysis",
-    "case solving"
-  ],
-  "glim_experiences": [
-    "McKinsey rounds were hypothesis-driven",
-    "BCG tested communication clarity"
+  "role": "Tech Consultant",
+  "contexts": [
+    {
+      "company": "General",
+      "experience": "0-2",
+      "notes": "Focus on problem solving and client communication",
+      "sample_questions": [
+        "How do you approach an ambiguous client problem?",
+        "Tell me about a time you influenced a stakeholder"
+      ]
+    }
   ]
 }
