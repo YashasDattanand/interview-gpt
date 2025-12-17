@@ -16,11 +16,10 @@ app.use("/interview", interviewRoutes);
 app.use("/feedback", feedbackRoutes);
 app.use("/resume-jd", resumeJDRoutes);
 
-app.get("/", (req, res) => {
+app.get("/", (_, res) => {
   res.send("InterviewGPT Backend Running");
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Backend running on port ${PORT}`);
-});
+app.listen(process.env.PORT, () =>
+  console.log("Backend running on port", process.env.PORT)
+);
