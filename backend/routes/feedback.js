@@ -1,43 +1,41 @@
-import express from "express";
-import Groq from "groq-sdk";
+const API = "https://interview-gpt-backend-00vj.onrender.com";
 
-const router = express.Router();
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+async function loadFeedback() {
+  const transcript = localStorage.getItem("transcript");
 
-router.post("/", async (req, res) => {
-  try {
-    const { transcript } = req.body;
+  const res = await fetch(`${API}/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transcript })
+  });
 
-    if (!transcript) {
-      return res.status(400).json({ error: "Missing transcript" });
+  const data = await res.json();
+
+  document.getElementById("summary").innerText =
+    "Overall performance analysis below";
+
+  const ctx = document.getElementById("scoreChart");
+  new Chart(ctx, {
+    type: "radar",
+    data: {
+      labels: Object.keys(data.scores),
+      datasets: [{
+        label: "Scores",
+        data: Object.values(data.scores),
+        backgroundColor: "rgba(0,200,255,0.3)"
+      }]
     }
+  });
 
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.1-70b-versatile",
-      messages: [{
-        role: "system",
-        content: `
-Evaluate this interview.
-Return STRICT JSON with:
-scores: communication, clarity, confidence (1-10)
-strengths, weaknesses, improvements arrays
-`
-      },{
-        role: "user",
-        content: transcript
-      }],
-      temperature: 0.3
-    });
+  data.strengths.forEach(s =>
+    document.getElementById("strengths").innerHTML += `<li>${s}</li>`
+  );
+  data.weaknesses.forEach(w =>
+    document.getElementById("weaknesses").innerHTML += `<li>${w}</li>`
+  );
+  data.improvements.forEach(i =>
+    document.getElementById("improvements").innerHTML += `<li>${i}</li>`
+  );
+}
 
-    const raw = completion.choices[0].message.content;
-    const json = JSON.parse(raw);
-
-    res.json(json);
-
-  } catch (err) {
-    console.error("Feedback error:", err.message);
-    res.status(500).json({ error: "Feedback generation failed" });
-  }
-});
-
-export default router;
+loadFeedback();
