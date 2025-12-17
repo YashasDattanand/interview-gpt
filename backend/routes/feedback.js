@@ -1,41 +1,43 @@
-const API = "https://interview-gpt-backend-00vj.onrender.com";
+import express from "express";
+import Groq from "groq-sdk";
 
-async function loadFeedback() {
-  const transcript = localStorage.getItem("transcript");
+const router = express.Router();
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-  const res = await fetch(`${API}/feedback`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ transcript })
-  });
+router.post("/", async (req, res) => {
+  try {
+    const { transcript = "" } = req.body;
 
-  const data = await res.json();
-
-  document.getElementById("summary").innerText =
-    "Overall performance analysis below";
-
-  const ctx = document.getElementById("scoreChart");
-  new Chart(ctx, {
-    type: "radar",
-    data: {
-      labels: Object.keys(data.scores),
-      datasets: [{
-        label: "Scores",
-        data: Object.values(data.scores),
-        backgroundColor: "rgba(0,200,255,0.3)"
-      }]
-    }
-  });
-
-  data.strengths.forEach(s =>
-    document.getElementById("strengths").innerHTML += `<li>${s}</li>`
-  );
-  data.weaknesses.forEach(w =>
-    document.getElementById("weaknesses").innerHTML += `<li>${w}</li>`
-  );
-  data.improvements.forEach(i =>
-    document.getElementById("improvements").innerHTML += `<li>${i}</li>`
-  );
+    const completion = await groq.chat.completions.create({
+      model: "llama3-8b-8192",
+      messages: [
+        {
+          role: "system",
+          content: `
+You are an interview coach.
+Return ONLY valid JSON.
+No markdown.
+JSON format:
+{
+ "scores": { "communication":0-10, "clarity":0-10, "confidence":0-10 },
+ "strengths": [],
+ "weaknesses": [],
+ "improvements": []
 }
+`
+        },
+        { role: "user", content: transcript }
+      ]
+    });
 
-loadFeedback();
+    const text = completion.choices[0].message.content;
+    const json = JSON.parse(text);
+
+    res.json(json);
+  } catch (err) {
+    console.error("Feedback error:", err.message);
+    res.status(500).json({ error: "Feedback generation failed" });
+  }
+});
+
+export default router;
