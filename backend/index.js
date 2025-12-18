@@ -7,7 +7,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.use("/interview", interviewRoutes);
-app.use("/feedback", feedbackRoutes);
+app.post("/interview", interviewRoutes);
+app.post("/feedback", feedbackRoutes);
 
-app.listen(5000, () => console.log("Backend running on port 5000"));
+app.listen(5000, () => {
+  console.log("Backend running on port 5000");
+});
