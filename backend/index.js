@@ -1,25 +1,18 @@
 import express from "express";
 import cors from "cors";
+import dotenv from "dotenv";
+import interview from "./routes/interview.js";
+import feedback from "./routes/feedback.js";
 
-import interviewRoutes from "./routes/interview.js";
-import feedbackRoutes from "./routes/feedback.js";
+dotenv.config();
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-/**
- * ✅ ROUTER MOUNTING (THIS WAS BROKEN)
- */
-app.use("/interview", interviewRoutes);
-app.use("/feedback", feedbackRoutes);
+app.post("/interview", interview);
+app.post("/feedback", feedback);
 
-app.get("/", (req, res) => {
-  res.send("InterviewGPT backend running");
-});
-
-const PORT = 5000;
-app.listen(PORT, () => {
-  console.log(`Backend running on port ${PORT}`);
+app.listen(5000, () => {
+  console.log("Backend running on port 5000");
 });
