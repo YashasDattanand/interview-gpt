@@ -3,21 +3,8 @@ import fs from "fs";
 import Groq from "groq-sdk";
 
 const router = express.Router();
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY
-});
-
-/**
- * POST /interview
- * body:
- * {
- *   role,
- *   experience,
- *   company,
- *   conversation: [{ role: "user"|"assistant", content: string }]
- * }
- */
 router.post("/", async (req, res) => {
   try {
     const { role, experience, company, conversation = [] } = req.body;
@@ -26,34 +13,33 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Missing role or experience" });
     }
 
-    // Load RAG safely
-    let ragContext = "";
+    // Load RAG (grounding, not embeddings)
     const ragPath = `./rag/${role}.json`;
-
+    let ragContext = "";
     if (fs.existsSync(ragPath)) {
-      const ragData = JSON.parse(fs.readFileSync(ragPath, "utf-8"));
-      ragContext = ragData.questions.join("\n");
+      const rag = JSON.parse(fs.readFileSync(ragPath, "utf-8"));
+      ragContext = rag.interview_experiences.join("\n");
     }
 
     const systemPrompt = `
-You are an experienced interview COACH.
+You are a senior interviewer and coach.
 
-RULES:
+Your job:
 - Conduct a realistic interview
-- Start broad, then go deep
-- Ask follow-up questions based on user's last answer
+- Ask ONE question at a time
+- Use the candidate’s previous answer to ask follow-ups
 - Do NOT repeat questions
-- Tailor difficulty based on experience: ${experience}
-- If company provided (${company}), include 1–2 company-specific questions
-- Ask ONLY ONE question at a time
+- Difficulty based on experience: ${experience}
+- If company is "${company}" and not General, ask 1–2 company-specific questions
+- If answer is shallow, probe "why" or "how"
+- Start broad, then go deeper
+
+Grounding (past interview signals):
+${ragContext}
 `;
 
     const messages = [
       { role: "system", content: systemPrompt },
-      {
-        role: "system",
-        content: `Role-specific interview topics:\n${ragContext}`
-      },
       ...conversation
     ];
 
@@ -63,8 +49,7 @@ RULES:
       temperature: 0.7
     });
 
-    const question = completion.choices[0].message.content;
-
+    const question = completion.choices[0].message.content.trim();
     res.json({ question });
 
   } catch (err) {
