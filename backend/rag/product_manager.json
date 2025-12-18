@@ -1,16 +1,8 @@
 {
-  "role": "Product Manager",
-  "areas": [
-    "Product strategy",
-    "User research",
-    "Stakeholder management",
-    "Metrics and success definition",
-    "Roadmapping"
-  ],
-  "questions": [
-    "How do you prioritize features?",
-    "How do you define success for a product?",
-    "Describe a product you owned end-to-end",
-    "How do you handle conflicting stakeholders?"
+  "interview_experiences": [
+    "Candidates are often asked to explain a product they admire and how they would improve it.",
+    "Interviewers probe deeply on prioritization frameworks like RICE and trade-off decisions.",
+    "Google PM interviews emphasize structured thinking and user-first problem solving.",
+    "Follow-up questions are common if answers lack data or real-world examples."
   ]
 }
