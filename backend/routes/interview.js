@@ -8,81 +8,67 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
 
+/**
+ * POST /interview
+ * body:
+ * {
+ *   role,
+ *   experience,
+ *   company,
+ *   conversation: [{ role: "user"|"assistant", content: string }]
+ * }
+ */
 router.post("/", async (req, res) => {
   try {
-    const { role, experience, company, conversation, userText } = req.body;
+    const { role, experience, company, conversation = [] } = req.body;
 
     if (!role || !experience) {
       return res.status(400).json({ error: "Missing role or experience" });
     }
 
-    // Load RAG file safely
+    // Load RAG safely
     let ragContext = "";
-    try {
-      ragContext = fs.readFileSync(`./rag/${role}.json`, "utf-8");
-    } catch {
-      ragContext = "General interview questions.";
+    const ragPath = `./rag/${role}.json`;
+
+    if (fs.existsSync(ragPath)) {
+      const ragData = JSON.parse(fs.readFileSync(ragPath, "utf-8"));
+      ragContext = ragData.questions.join("\n");
     }
 
-    const messages = [];
+    const systemPrompt = `
+You are an experienced interview COACH.
 
-    messages.push({
-      role: "system",
-      content: `
-You are a professional interview coach.
-Role: ${role}
-Experience level: ${experience}
-Target company: ${company || "General"}
-
-Use this context:
-${ragContext}
-
-Rules:
-- Ask ONE question at a time
-- Build follow-up questions based on user answers
+RULES:
+- Conduct a realistic interview
+- Start broad, then go deep
+- Ask follow-up questions based on user's last answer
 - Do NOT repeat questions
-- Be natural and conversational
-`
-    });
+- Tailor difficulty based on experience: ${experience}
+- If company provided (${company}), include 1–2 company-specific questions
+- Ask ONLY ONE question at a time
+`;
 
-    if (Array.isArray(conversation)) {
-      conversation.forEach(msg => {
-        if (typeof msg.content === "string") {
-          messages.push({
-            role: msg.role,
-            content: msg.content
-          });
-        }
-      });
-    }
-
-    if (userText && typeof userText === "string") {
-      messages.push({
-        role: "user",
-        content: userText
-      });
-    }
+    const messages = [
+      { role: "system", content: systemPrompt },
+      {
+        role: "system",
+        content: `Role-specific interview topics:\n${ragContext}`
+      },
+      ...conversation
+    ];
 
     const completion = await groq.chat.completions.create({
       model: "llama3-70b-8192",
-      messages
+      messages,
+      temperature: 0.7
     });
-
-    if (
-      !completion ||
-      !completion.choices ||
-      !completion.choices[0] ||
-      !completion.choices[0].message
-    ) {
-      throw new Error("Invalid LLM response");
-    }
 
     const question = completion.choices[0].message.content;
 
     res.json({ question });
 
   } catch (err) {
-    console.error("Interview error:", err.message);
+    console.error("Interview error:", err);
     res.status(500).json({ error: "Interview failed" });
   }
 });
