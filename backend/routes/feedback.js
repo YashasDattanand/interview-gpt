@@ -2,15 +2,11 @@ import express from "express";
 import Groq from "groq-sdk";
 
 const router = express.Router();
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY
-});
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 router.post("/", async (req, res) => {
   try {
     const { conversation } = req.body;
-
     if (!conversation || conversation.length === 0) {
       return res.status(400).json({ error: "No conversation provided" });
     }
@@ -18,21 +14,21 @@ router.post("/", async (req, res) => {
     const prompt = `
 You are an interview evaluator.
 
-Evaluate the candidate based on the interview below.
-Return STRICT JSON in this format:
+Analyze the interview transcript below and return STRICT JSON:
 
 {
   "scores": {
     "communication": number (1-10),
     "clarity": number (1-10),
-    "confidence": number (1-10)
+    "confidence": number (1-10),
+    "depth": number (1-10)
   },
   "strengths": [string],
   "weaknesses": [string],
   "improvements": [string]
 }
 
-Interview transcript:
+Transcript:
 ${conversation.map(m => `${m.role}: ${m.content}`).join("\n")}
 `;
 
