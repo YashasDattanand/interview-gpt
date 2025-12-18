@@ -11,38 +11,35 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "No conversation provided" });
     }
 
-    const prompt = `
+    const completion = await groq.chat.completions.create({
+      model: "llama3-70b-8192",
+      messages: [
+        {
+          role: "system",
+          content: `
 You are an interview evaluator.
-
-Analyze the interview transcript below and return STRICT JSON:
+Return STRICT JSON in this format:
 
 {
   "scores": {
     "communication": number (1-10),
     "clarity": number (1-10),
-    "confidence": number (1-10),
-    "depth": number (1-10)
+    "confidence": number (1-10)
   },
   "strengths": [string],
   "weaknesses": [string],
   "improvements": [string]
 }
-
-Transcript:
-${conversation.map(m => `${m.role}: ${m.content}`).join("\n")}
-`;
-
-    const completion = await groq.chat.completions.create({
-      model: "llama3-70b-8192",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3
+          `,
+        },
+        ...conversation,
+      ],
     });
 
-    const feedback = JSON.parse(completion.choices[0].message.content);
-    res.json(feedback);
-
+    const json = completion.choices[0].message.content;
+    res.json(JSON.parse(json));
   } catch (err) {
-    console.error("Feedback error:", err);
+    console.error(err);
     res.status(500).json({ error: "Feedback generation failed" });
   }
 });
