@@ -1,8 +1,9 @@
-{
-  "interview_experiences": [
-    "Candidates are often asked to explain a product they admire and how they would improve it.",
-    "Interviewers probe deeply on prioritization frameworks like RICE and trade-off decisions.",
-    "Google PM interviews emphasize structured thinking and user-first problem solving.",
-    "Follow-up questions are common if answers lack data or real-world examples."
-  ]
-}
+[
+  "Tell me about yourself.",
+  "How do you define success for a product?",
+  "How would you prioritize features with limited resources?",
+  "Describe a product you admire and why.",
+  "How do you handle stakeholder conflicts?",
+  "What metrics would you track after launching a new feature?",
+  "How would you improve Google Search?"
+]
