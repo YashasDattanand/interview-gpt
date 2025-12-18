@@ -16,36 +16,26 @@ router.post("/", async (req, res) => {
     }
 
     const systemPrompt = `
-You are an experienced interview coach.
-You are interviewing a candidate for the role of ${role}.
-Experience level: ${experience} years.
-Target company: ${company || "General"}.
+You are an interview coach.
+Role: ${role}
+Experience: ${experience}
+Company: ${company || "General"}
 
-Rules:
-- Ask ONE question at a time
-- Ask follow-up questions based on the user's last answer
-- Do NOT repeat the same question
-- Be natural and conversational
+Ask one non-repeating interview question at a time.
 `;
-
-    const messages = [
-      { role: "system", content: systemPrompt },
-      ...(conversation || []),
-    ];
 
     const completion = await groq.chat.completions.create({
       model: "llama-3.1-8b-instant",
-      messages,
-      temperature: 0.7,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...(conversation || []),
+      ],
     });
 
-    const question =
-      completion.choices?.[0]?.message?.content ||
-      "Let's continue. Can you elaborate on your previous answer?";
-
+    const question = completion.choices[0].message.content;
     res.json({ question });
   } catch (err) {
-    console.error("Interview error:", err);
+    console.error(err);
     res.status(500).json({ error: "Interview failed" });
   }
 });
