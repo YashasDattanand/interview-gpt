@@ -11,16 +11,15 @@ router.post("/", async (req, res) => {
   try {
     const { conversation } = req.body;
 
-    if (!Array.isArray(conversation) || conversation.length === 0) {
+    if (!conversation || conversation.length === 0) {
       return res.status(400).json({ error: "No conversation provided" });
     }
 
-    const messages = [
-      {
-        role: "system",
-        content: `
+    const prompt = `
 You are an interview evaluator.
-Analyze the interview and return JSON ONLY in this format:
+
+Evaluate the candidate based on the interview below.
+Return STRICT JSON in this format:
 
 {
   "scores": {
@@ -32,35 +31,22 @@ Analyze the interview and return JSON ONLY in this format:
   "weaknesses": [string],
   "improvements": [string]
 }
-`
-      }
-    ];
 
-    conversation.forEach(msg => {
-      if (typeof msg.content === "string") {
-        messages.push({
-          role: msg.role,
-          content: msg.content
-        });
-      }
-    });
+Interview transcript:
+${conversation.map(m => `${m.role}: ${m.content}`).join("\n")}
+`;
 
     const completion = await groq.chat.completions.create({
       model: "llama3-70b-8192",
-      messages
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3
     });
 
-    const raw = completion.choices[0].message.content;
-
-    const jsonStart = raw.indexOf("{");
-    const jsonEnd = raw.lastIndexOf("}");
-
-    const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1));
-
-    res.json(parsed);
+    const feedback = JSON.parse(completion.choices[0].message.content);
+    res.json(feedback);
 
   } catch (err) {
-    console.error("Feedback error:", err.message);
+    console.error("Feedback error:", err);
     res.status(500).json({ error: "Feedback generation failed" });
   }
 });
