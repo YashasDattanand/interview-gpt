@@ -3,6 +3,10 @@ import cors from "cors";
 import dotenv from "dotenv";
 import interviewRoute from "./routes/interview.js";
 import feedbackRoute from "./routes/feedback.js";
+import resumeJDRoute from "./routes/resumeJD.js";
+
+app.use("/resume-jd", resumeJDRoute);
+
 
 dotenv.config();
 
@@ -17,4 +21,5 @@ app.use("/resume-jd", resumeJD);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log("Backend running on port", PORT));
+
 
