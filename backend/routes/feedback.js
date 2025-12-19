@@ -5,51 +5,68 @@ const router = express.Router();
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 router.post("/", async (req, res) => {
-  const { conversation, plan } = req.body;
+  try {
+    const { conversation, earlyExit } = req.body;
 
-  if (!conversation || conversation.length < 4) {
-    return res.status(400).json({ error: "Interview too short" });
-  }
+    const userTurns = conversation.filter(m => m.role === "user").length;
 
-  const prompt = `
+    let penaltyNote = "";
+    let penalty = 0;
+
+    if (userTurns < 3) {
+      penalty = 2;
+      penaltyNote =
+        "Interview ended early. Scores reduced due to limited responses.";
+    }
+
+    const prompt = `
 You are an interview evaluator.
 
-Interview plan:
-${JSON.stringify(plan, null, 2)}
-
 Conversation:
-${conversation.map(c => `${c.role}: ${c.content}`).join("\n")}
-
-Evaluate on:
-- Communication
-- Clarity
-- Confidence
-- Structure
-- Coverage of interview plan
+${conversation.map(m => `${m.role}: ${m.content}`).join("\n")}
 
 Return STRICT JSON:
 {
-  "overall": number,
   "scores": {
-    "communication": number,
-    "clarity": number,
-    "confidence": number,
-    "structure": number
+    "communication": number (0-10),
+    "clarity": number (0-10),
+    "confidence": number (0-10)
   },
-  "strengths": [],
-  "weaknesses": [],
-  "improvements": []
+  "strengths": [string],
+  "weaknesses": [string],
+  "improvements": [string]
 }
+
+If interview is short, penalize scores.
 `;
 
-  const completion = await groq.chat.completions.create({
-    model: "llama-3.1-8b-instant",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.3
-  });
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.1-70b-versatile",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.4
+    });
 
-  const feedback = JSON.parse(completion.choices[0].message.content);
-  res.json(feedback);
+    let result = JSON.parse(completion.choices[0].message.content);
+
+    // ⬇️ Apply penalty safely
+    for (let k in result.scores) {
+      result.scores[k] = Math.max(0, result.scores[k] - penalty);
+    }
+
+    if (penaltyNote) {
+      result.improvements.unshift(penaltyNote);
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      scores: { communication: 3, clarity: 3, confidence: 3 },
+      strengths: ["Attempted the interview"],
+      weaknesses: ["Interview ended too early"],
+      improvements: ["Complete the full interview next time"]
+    });
+  }
 });
 
 export default router;
