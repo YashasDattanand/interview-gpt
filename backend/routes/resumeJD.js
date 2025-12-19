@@ -1,28 +1,36 @@
 import express from "express";
-import fetch from "node-fetch";
+import multer from "multer";
+import Groq from "groq-sdk";
+import { extractText } from "../utils/extractText.js";
+import { buildPrompt } from "../utils/ragPrompt.js";
 
 const router = express.Router();
+const upload = multer();
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-router.post("/", async (req, res) => {
-  const { resume, jd } = req.body;
+router.post(
+  "/analyze",
+  upload.fields([{ name: "resume" }, { name: "jd" }]),
+  async (req, res) => {
+    try {
+      const resumeText = await extractText(req.files.resume[0]);
+      const jdText = await extractText(req.files.jd[0]);
 
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "llama3-70b-8192",
-      messages: [
-        { role: "system", content: "Compare resume vs JD and give gaps." },
-        { role: "user", content: `Resume:\n${resume}\nJD:\n${jd}` }
-      ]
-    })
-  });
+      const prompt = buildPrompt(resumeText, jdText);
 
-  const data = await response.json();
-  res.json({ analysis: data.choices[0].message.content });
-});
+      const completion = await groq.chat.completions.create({
+        model: "llama-3.1-8b-instant",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.2
+      });
+
+      const json = JSON.parse(completion.choices[0].message.content);
+      res.json(json);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Resume JD analysis failed" });
+    }
+  }
+);
 
 export default router;
