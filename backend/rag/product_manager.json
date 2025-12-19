@@ -1,14 +1,24 @@
 {
-  "intro": [
-    "Tell me about yourself and your interest in product management.",
-    "Why do you want to become a product manager?"
-  ],
-  "beginner": [
-    "How would you decide what feature to build first?",
-    "What metrics would you track for a new product?"
-  ],
-  "company_google": [
-    "How would you improve Google Search for first-time users?",
-    "Design a product to improve YouTube creator retention."
-  ]
+  "role": "Product Manager",
+  "company": "Google",
+  "interview_patterns": {
+    "duration_minutes": 10,
+    "sections": [
+      { "type": "intro", "difficulty": "easy" },
+      { "type": "product_sense", "difficulty": "medium" },
+      { "type": "execution", "difficulty": "medium" },
+      { "type": "case", "difficulty": "hard" }
+    ],
+    "common_questions": [
+      "How do you define success for a product?",
+      "How would you improve Google Maps?",
+      "Tell me about a product you admire and why"
+    ],
+    "evaluation_criteria": [
+      "clarity",
+      "structured thinking",
+      "customer empathy",
+      "data reasoning"
+    ]
+  }
 }
