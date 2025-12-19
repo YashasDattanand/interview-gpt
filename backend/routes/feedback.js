@@ -1,55 +1,69 @@
-import express from "express";
-import Groq from "groq-sdk";
+window.onload = () => {
+  const raw = localStorage.getItem("feedback");
 
-const router = express.Router();
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
-router.post("/", async (req, res) => {
-  const { conversation, plan } = req.body;
-
-  if (!conversation || conversation.length < 4) {
-    return res.status(400).json({ error: "Interview too short" });
+  if (!raw) {
+    document.getElementById("status").innerText = "No feedback data found.";
+    return;
   }
 
-  const prompt = `
-You are an interview evaluator.
+  const data = JSON.parse(raw);
 
-Interview plan:
-${JSON.stringify(plan, null, 2)}
+  document.getElementById("status").innerText = "";
+  document.getElementById("content").style.display = "block";
 
-Conversation:
-${conversation.map(c => `${c.role}: ${c.content}`).join("\n")}
+  // Overall score
+  const avg =
+    Math.round(
+      (data.scores.communication +
+        data.scores.clarity +
+        data.scores.confidence) / 3
+    );
 
-Evaluate on:
-- Communication
-- Clarity
-- Confidence
-- Structure
-- Coverage of interview plan
+  document.getElementById("overallScore").innerText =
+    `Overall Performance: ${avg}/10`;
 
-Return STRICT JSON:
-{
-  "overall": number,
-  "scores": {
-    "communication": number,
-    "clarity": number,
-    "confidence": number,
-    "structure": number
-  },
-  "strengths": [],
-  "weaknesses": [],
-  "improvements": []
-}
-`;
+  // Lists
+  const fillList = (id, arr) => {
+    const ul = document.getElementById(id);
+    arr.forEach(item => {
+      const li = document.createElement("li");
+      li.innerText = item;
+      ul.appendChild(li);
+    });
+  };
 
-  const completion = await groq.chat.completions.create({
-    model: "llama-3.1-8b-instant",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.3
+  fillList("strengths", data.strengths);
+  fillList("weaknesses", data.weaknesses);
+  fillList("improvements", data.improvements);
+
+  // Chart
+  const ctx = document.getElementById("scoreChart");
+
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: ["Communication", "Clarity", "Confidence"],
+      datasets: [{
+        label: "Score (out of 10)",
+        data: [
+          data.scores.communication,
+          data.scores.clarity,
+          data.scores.confidence
+        ],
+        backgroundColor: ["#38bdf8", "#22c55e", "#f59e0b"]
+      }]
+    },
+    options: {
+      scales: {
+        y: {
+          min: 0,
+          max: 10,
+          ticks: { stepSize: 1 }
+        }
+      },
+      plugins: {
+        legend: { display: false }
+      }
+    }
   });
-
-  const feedback = JSON.parse(completion.choices[0].message.content);
-  res.json(feedback);
-});
-
-export default router;
+};
