@@ -1,18 +1,17 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-import interview from "./routes/interview.js";
-import feedback from "./routes/feedback.js";
-
-dotenv.config();
+import interviewRoutes from "./routes/interview.js";
+import feedbackRoutes from "./routes/feedback.js";
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 
-app.post("/interview", interview);
-app.post("/feedback", feedback);
+app.post("/interview", interviewRoutes);
+app.post("/feedback", feedbackRoutes);
 
-app.listen(5000, () => {
-  console.log("Backend running on port 5000");
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log("Backend running on port", PORT);
 });
