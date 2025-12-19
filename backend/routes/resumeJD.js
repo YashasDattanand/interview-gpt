@@ -1,6 +1,6 @@
 import express from "express";
-import Groq from "groq-sdk";
 import multer from "multer";
+import Groq from "groq-sdk";
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -18,39 +18,39 @@ router.post(
   async (req, res) => {
     try {
       if (!req.files?.resume || !req.files?.jd) {
-        return res.status(400).json({ error: "Files missing" });
+        return res.status(400).json({ error: "Resume or JD missing" });
       }
 
       const resumeText = req.files.resume[0].buffer.toString("utf-8");
       const jdText = req.files.jd[0].buffer.toString("utf-8");
 
       const prompt = `
-You are an expert recruiter and hiring manager.
+You are an expert recruiter.
 
 Compare the RESUME and JOB DESCRIPTION below.
 
-Return STRICT JSON in this format:
-{
-  "score": number (0-100),
-  "company_looking_for": [string],
-  "strengths": [string],
-  "weaknesses": [string],
-  "opportunities": [string],
-  "threats": [string],
-  "phrase_level_improvements": [
-    {
-      "original": string,
-      "suggested": string,
-      "reason": string
-    }
-  ]
-}
+Return:
+1. Overall match score out of 100
+2. SWOT analysis
+3. Company expectations
+4. Phrase-level resume improvements
 
 RESUME:
 ${resumeText}
 
 JOB DESCRIPTION:
 ${jdText}
+
+Return STRICT JSON:
+{
+  "score": number,
+  "strengths": [],
+  "weaknesses": [],
+  "opportunities": [],
+  "threats": [],
+  "company_looks_for": [],
+  "phrase_suggestions": []
+}
 `;
 
       const completion = await groq.chat.completions.create({
@@ -64,8 +64,8 @@ ${jdText}
 
       res.json(json);
     } catch (err) {
-      console.error("Resume JD Error:", err);
-      res.status(500).json({ error: "Resume–JD analysis failed" });
+      console.error("Resume-JD Error:", err);
+      res.status(500).json({ error: "Analysis failed" });
     }
   }
 );
