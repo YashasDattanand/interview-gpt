@@ -12,6 +12,9 @@ app.use(express.json({ limit: "1mb" }));
 
 app.use("/interview", interviewRoute);
 app.use("/feedback", feedbackRoute);
+import resumeJD from "./routes/resumeJD.js";
+app.use("/resume-jd", resumeJD);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log("Backend running on port", PORT));
+
