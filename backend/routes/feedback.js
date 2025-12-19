@@ -2,52 +2,54 @@ import express from "express";
 import Groq from "groq-sdk";
 
 const router = express.Router();
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY
-});
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 router.post("/", async (req, res) => {
-  try {
-    const { conversation } = req.body;
+  const { conversation, plan } = req.body;
 
-    if (!conversation || conversation.length === 0) {
-      return res.status(400).json({ error: "No conversation provided" });
-    }
-
-    const messages = [
-      {
-        role: "system",
-        content: `
-You are an interview evaluator.
-Return JSON strictly in this format:
-
-{
- "scores": {
-   "communication": number,
-   "clarity": number,
-   "confidence": number
- },
- "strengths": [string],
- "weaknesses": [string],
- "improvements": [string]
-}
-`
-      },
-      { role: "user", content: JSON.stringify(conversation) }
-    ];
-
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      messages,
-      temperature: 0.3
-    });
-
-    res.json(JSON.parse(completion.choices[0].message.content));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Feedback generation failed" });
+  if (!conversation || conversation.length < 4) {
+    return res.status(400).json({ error: "Interview too short" });
   }
+
+  const prompt = `
+You are an interview evaluator.
+
+Interview plan:
+${JSON.stringify(plan, null, 2)}
+
+Conversation:
+${conversation.map(c => `${c.role}: ${c.content}`).join("\n")}
+
+Evaluate on:
+- Communication
+- Clarity
+- Confidence
+- Structure
+- Coverage of interview plan
+
+Return STRICT JSON:
+{
+  "overall": number,
+  "scores": {
+    "communication": number,
+    "clarity": number,
+    "confidence": number,
+    "structure": number
+  },
+  "strengths": [],
+  "weaknesses": [],
+  "improvements": []
+}
+`;
+
+  const completion = await groq.chat.completions.create({
+    model: "llama-3.1-8b-instant",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.3
+  });
+
+  const feedback = JSON.parse(completion.choices[0].message.content);
+  res.json(feedback);
 });
 
 export default router;
