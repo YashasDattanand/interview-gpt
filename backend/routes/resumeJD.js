@@ -15,18 +15,16 @@ router.post("/analyze", async (req, res) => {
       return res.status(400).json({ error: "Missing resume or JD text" });
     }
 
-    // 🔒 HARD TRIM (critical)
-    resumeText = resumeText.slice(0, 2500);
-    jdText = jdText.slice(0, 2500);
+    // HARD LIMIT to avoid 413
+    resumeText = resumeText.slice(0, 2000);
+    jdText = jdText.slice(0, 2000);
 
     const prompt = `
-You are an expert ATS + hiring manager.
+Return ONLY valid JSON. No explanations. No markdown.
 
-Analyze the resume against the job description.
-
-Return STRICT JSON ONLY in this format:
+JSON format:
 {
-  "score": number (0-100),
+  "score": number,
   "company_looking_for": string[],
   "strengths": string[],
   "weaknesses": string[],
@@ -44,15 +42,32 @@ ${jdText}
     const completion = await groq.chat.completions.create({
       model: "llama-3.1-8b-instant",
       messages: [{ role: "user", content: prompt }],
-      temperature: 0.3
+      temperature: 0
     });
 
-    const raw = completion.choices[0].message.content;
-    const json = JSON.parse(raw);
+    const raw = completion.choices[0].message.content.trim();
 
-    res.json(json);
+    // 🛡️ SAFE PARSE (NO MORE CRASHES)
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      console.error("Raw LLM output (non-JSON):", raw);
+      return res.status(500).json({
+        error: "Model returned invalid JSON",
+        raw
+      });
+    }
+
+    // Normalize score
+    if (parsed.score <= 1) {
+      parsed.score = Math.round(parsed.score * 100);
+    }
+
+    res.json(parsed);
+
   } catch (err) {
-    console.error("Resume JD Error:", err);
+    console.error("Resume JD Fatal Error:", err);
     res.status(500).json({ error: "Resume analysis failed" });
   }
 });
