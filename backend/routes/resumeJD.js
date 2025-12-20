@@ -1,6 +1,7 @@
 import express from "express";
 import multer from "multer";
 import fs from "fs";
+import pdf from "pdf-parse";
 import Groq from "groq-sdk";
 
 const router = express.Router();
@@ -10,9 +11,18 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
 
-// HARD safety cap
-function hardTrim(text, maxChars = 2500) {
-  return text.length > maxChars ? text.slice(0, maxChars) : text;
+// HARD LIMIT — token safe
+function safeText(text, maxChars = 2000) {
+  return text.replace(/\s+/g, " ").slice(0, maxChars);
+}
+
+async function extractText(file) {
+  if (file.mimetype === "application/pdf") {
+    const buffer = fs.readFileSync(file.path);
+    const data = await pdf(buffer);
+    return data.text || "";
+  }
+  return fs.readFileSync(file.path, "utf8");
 }
 
 router.post(
@@ -27,28 +37,29 @@ router.post(
         return res.status(400).json({ error: "Files missing" });
       }
 
-      let resumeText = fs.readFileSync(req.files.resume[0].path, "utf8");
-      let jdText = fs.readFileSync(req.files.jd[0].path, "utf8");
+      let resumeText = await extractText(req.files.resume[0]);
+      let jdText = await extractText(req.files.jd[0]);
 
-      // HARD TRIM — this is the key
-      resumeText = hardTrim(resumeText);
-      jdText = hardTrim(jdText);
+      // 🔒 HARD SAFETY
+      resumeText = safeText(resumeText);
+      jdText = safeText(jdText);
 
       const prompt = `
-You are an expert recruiter and resume evaluator.
+You are an expert recruiter.
 
-Analyze the RESUME against the JOB DESCRIPTION.
+Compare the RESUME with the JOB DESCRIPTION.
 
 Return STRICT JSON ONLY:
+
 {
-  "score": number (0-100),
-  "company_looking_for": [strings],
-  "strengths": [strings],
-  "weaknesses": [strings],
-  "opportunities": [strings],
-  "threats": [strings],
+  "score": 0-100,
+  "company_looking_for": [],
+  "strengths": [],
+  "weaknesses": [],
+  "opportunities": [],
+  "threats": [],
   "phrase_improvements": [
-    { "original": string, "suggested": string }
+    { "original": "", "suggested": "" }
   ]
 }
 
@@ -65,13 +76,13 @@ ${jdText}
         temperature: 0.2
       });
 
-      const raw = completion.choices[0].message.content;
+      const output = completion.choices[0].message.content;
 
       let parsed;
       try {
-        parsed = JSON.parse(raw);
+        parsed = JSON.parse(output);
       } catch {
-        return res.status(500).json({ error: "Invalid JSON from LLM", raw });
+        return res.status(500).json({ error: "Invalid JSON from LLM", output });
       }
 
       res.json(parsed);
