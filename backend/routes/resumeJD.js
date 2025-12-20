@@ -10,26 +10,9 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
 
-// helper: limit text size
-function trimText(text, maxChars = 4000) {
-  if (!text) return "";
+// HARD safety cap
+function hardTrim(text, maxChars = 2500) {
   return text.length > maxChars ? text.slice(0, maxChars) : text;
-}
-
-// helper: summarize long text
-async function summarize(text, label) {
-  const res = await groq.chat.completions.create({
-    model: "llama-3.1-8b-instant",
-    messages: [
-      {
-        role: "user",
-        content: `Summarize the following ${label} into key skills, experience, and themes (bullet points):\n\n${text}`
-      }
-    ],
-    temperature: 0.2
-  });
-
-  return res.choices[0].message.content;
 }
 
 router.post(
@@ -41,26 +24,22 @@ router.post(
   async (req, res) => {
     try {
       if (!req.files?.resume || !req.files?.jd) {
-        return res.status(400).json({ error: "Resume or JD missing" });
+        return res.status(400).json({ error: "Files missing" });
       }
 
       let resumeText = fs.readFileSync(req.files.resume[0].path, "utf8");
       let jdText = fs.readFileSync(req.files.jd[0].path, "utf8");
 
-      // hard trim BEFORE summarization
-      resumeText = trimText(resumeText);
-      jdText = trimText(jdText);
-
-      // summarize both (THIS IS THE FIX)
-      const resumeSummary = await summarize(resumeText, "resume");
-      const jdSummary = await summarize(jdText, "job description");
+      // HARD TRIM — this is the key
+      resumeText = hardTrim(resumeText);
+      jdText = hardTrim(jdText);
 
       const prompt = `
-You are an expert recruiter.
+You are an expert recruiter and resume evaluator.
 
-Compare the RESUME SUMMARY and JOB DESCRIPTION SUMMARY.
+Analyze the RESUME against the JOB DESCRIPTION.
 
-Return STRICT JSON:
+Return STRICT JSON ONLY:
 {
   "score": number (0-100),
   "company_looking_for": [strings],
@@ -73,11 +52,11 @@ Return STRICT JSON:
   ]
 }
 
-RESUME SUMMARY:
-${resumeSummary}
+RESUME:
+${resumeText}
 
-JOB DESCRIPTION SUMMARY:
-${jdSummary}
+JOB DESCRIPTION:
+${jdText}
 `;
 
       const completion = await groq.chat.completions.create({
@@ -92,14 +71,10 @@ ${jdSummary}
       try {
         parsed = JSON.parse(raw);
       } catch {
-        return res.status(500).json({
-          error: "Invalid JSON from LLM",
-          raw
-        });
+        return res.status(500).json({ error: "Invalid JSON from LLM", raw });
       }
 
       res.json(parsed);
-
     } catch (err) {
       console.error("Resume JD Error:", err);
       res.status(500).json({ error: "Backend failed" });
