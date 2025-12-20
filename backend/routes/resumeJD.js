@@ -7,90 +7,53 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
 
-const MAX_CHARS = 3000;
-
-const clip = (t = "") =>
-  t.replace(/\s+/g, " ").slice(0, MAX_CHARS);
-
-// safe JSON extractor
-function extractJSON(text) {
-  try {
-    const match = text.match(/\{[\s\S]*\}/);
-    return match ? JSON.parse(match[0]) : null;
-  } catch {
-    return null;
-  }
-}
-
 router.post("/analyze", async (req, res) => {
   try {
     let { resumeText, jdText } = req.body;
 
     if (!resumeText || !jdText) {
-      return res.status(400).json({ error: "Missing input text" });
+      return res.status(400).json({ error: "Missing resume or JD text" });
     }
 
-    resumeText = clip(resumeText);
-    jdText = clip(jdText);
+    // 🔒 HARD TRIM (critical)
+    resumeText = resumeText.slice(0, 2500);
+    jdText = jdText.slice(0, 2500);
 
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      temperature: 0.3,
-      messages: [
-        {
-          role: "system",
-          content: `
-Return ONLY valid JSON. No explanations.
+    const prompt = `
+You are an expert ATS + hiring manager.
 
+Analyze the resume against the job description.
+
+Return STRICT JSON ONLY in this format:
 {
-  "score": number,
+  "score": number (0-100),
   "company_looking_for": string[],
   "strengths": string[],
   "weaknesses": string[],
   "opportunities": string[],
   "threats": string[]
 }
-`
-        },
-        {
-          role: "user",
-          content: `
-JOB DESCRIPTION:
-${jdText}
 
-RESUME:
+Resume:
 ${resumeText}
-`
-        }
-      ]
+
+Job Description:
+${jdText}
+`;
+
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3
     });
 
     const raw = completion.choices[0].message.content;
-    const parsed = extractJSON(raw);
+    const json = JSON.parse(raw);
 
-    // ✅ NEVER CRASH
-    if (!parsed) {
-      return res.json({
-        score: 70,
-        company_looking_for: [],
-        strengths: [],
-        weaknesses: [],
-        opportunities: [],
-        threats: []
-      });
-    }
-
-    res.json(parsed);
+    res.json(json);
   } catch (err) {
-    console.error("Resume JD Error:", err.message);
-    res.json({
-      score: 65,
-      company_looking_for: [],
-      strengths: [],
-      weaknesses: [],
-      opportunities: [],
-      threats: []
-    });
+    console.error("Resume JD Error:", err);
+    res.status(500).json({ error: "Resume analysis failed" });
   }
 });
 
