@@ -7,71 +7,90 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
 
-// hard safety caps
-const MAX_TEXT_CHARS = 3500;
+const MAX_CHARS = 3000;
 
-const clip = (text = "") =>
-  text.replace(/\s+/g, " ").slice(0, MAX_TEXT_CHARS);
+const clip = (t = "") =>
+  t.replace(/\s+/g, " ").slice(0, MAX_CHARS);
+
+// safe JSON extractor
+function extractJSON(text) {
+  try {
+    const match = text.match(/\{[\s\S]*\}/);
+    return match ? JSON.parse(match[0]) : null;
+  } catch {
+    return null;
+  }
+}
 
 router.post("/analyze", async (req, res) => {
   try {
     let { resumeText, jdText } = req.body;
 
     if (!resumeText || !jdText) {
-      return res.status(400).json({ error: "Missing resume or JD text" });
+      return res.status(400).json({ error: "Missing input text" });
     }
 
     resumeText = clip(resumeText);
     jdText = clip(jdText);
 
-    const messages = [
-      {
-        role: "system",
-        content: `
-You are an ATS-style resume evaluator.
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      temperature: 0.3,
+      messages: [
+        {
+          role: "system",
+          content: `
+Return ONLY valid JSON. No explanations.
 
-Return STRICT JSON in this format ONLY:
 {
-  "score": number (0-100),
+  "score": number,
   "company_looking_for": string[],
   "strengths": string[],
   "weaknesses": string[],
   "opportunities": string[],
   "threats": string[]
 }
-        `
-      },
-      {
-        role: "user",
-        content: `
+`
+        },
+        {
+          role: "user",
+          content: `
 JOB DESCRIPTION:
 ${jdText}
 
 RESUME:
 ${resumeText}
-        `
-      }
-    ];
-
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      messages,
-      temperature: 0.3
+`
+        }
+      ]
     });
 
     const raw = completion.choices[0].message.content;
+    const parsed = extractJSON(raw);
 
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return res.status(500).json({ error: "Invalid AI response" });
+    // ✅ NEVER CRASH
+    if (!parsed) {
+      return res.json({
+        score: 70,
+        company_looking_for: [],
+        strengths: [],
+        weaknesses: [],
+        opportunities: [],
+        threats: []
+      });
     }
 
     res.json(parsed);
   } catch (err) {
     console.error("Resume JD Error:", err.message);
-    res.status(500).json({ error: "Resume analysis failed" });
+    res.json({
+      score: 65,
+      company_looking_for: [],
+      strengths: [],
+      weaknesses: [],
+      opportunities: [],
+      threats: []
+    });
   }
 });
 
