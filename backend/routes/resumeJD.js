@@ -7,12 +7,11 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
 
-// HARD LIMIT to stay under Groq token cap
-const MAX_CHARS = 1800;
+// hard safety caps
+const MAX_TEXT_CHARS = 3500;
 
-function clip(text = "") {
-  return text.length > MAX_CHARS ? text.slice(0, MAX_CHARS) : text;
-}
+const clip = (text = "") =>
+  text.replace(/\s+/g, " ").slice(0, MAX_TEXT_CHARS);
 
 router.post("/analyze", async (req, res) => {
   try {
@@ -22,51 +21,56 @@ router.post("/analyze", async (req, res) => {
       return res.status(400).json({ error: "Missing resume or JD text" });
     }
 
-    // 🔒 FINAL SAFETY CLIP (THIS FIXES 413)
     resumeText = clip(resumeText);
     jdText = clip(jdText);
 
-    const prompt = `
-You are an expert hiring manager.
+    const messages = [
+      {
+        role: "system",
+        content: `
+You are an ATS-style resume evaluator.
 
-Compare the RESUME and JOB DESCRIPTION.
-
-Return STRICT JSON with this shape:
+Return STRICT JSON in this format ONLY:
 {
   "score": number (0-100),
   "company_looking_for": string[],
   "strengths": string[],
   "weaknesses": string[],
   "opportunities": string[],
-  "threats": string[],
-  "section_scores": {
-    "Strengths": number,
-    "Weaknesses": number,
-    "Opportunities": number,
-    "Threats": number
-  }
+  "threats": string[]
 }
+        `
+      },
+      {
+        role: "user",
+        content: `
+JOB DESCRIPTION:
+${jdText}
 
 RESUME:
 ${resumeText}
-
-JOB DESCRIPTION:
-${jdText}
-`;
+        `
+      }
+    ];
 
     const completion = await groq.chat.completions.create({
       model: "llama-3.1-8b-instant",
-      messages: [{ role: "user", content: prompt }],
+      messages,
       temperature: 0.3
     });
 
-    // Parse safely
     const raw = completion.choices[0].message.content;
-    const json = JSON.parse(raw);
 
-    res.json(json);
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return res.status(500).json({ error: "Invalid AI response" });
+    }
+
+    res.json(parsed);
   } catch (err) {
-    console.error("Resume JD Error:", err);
+    console.error("Resume JD Error:", err.message);
     res.status(500).json({ error: "Resume analysis failed" });
   }
 });
